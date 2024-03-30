@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["tinytroupe"]
+
+[project]
+name = "TinyTroupe"
+version = "0.1.0"
+authors = [
+  { name="Paulo Salem", email="paulo.salem@microsoft.com" },
+  { name="Nilo Garcia Silveira", email="nilog@microsoft.com" },
+  { name="Olnei Fonseca", email="olneif@microsoft.com" }
+]
+description = "LLM-based people simulation for design, validation and insight generation."
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "pandas", "pytest",                      
+    "openai", "tiktoken",
+    "msal",
+    "rich", "requests", "chevron",
+    "llama-index", "transformers"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/microsoft/tinytroupe"
+
