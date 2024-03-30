@@ -31,7 +31,7 @@ To run the library, you need:
 ### From the local repository
 To build and install the library from this repository, you can run the `build_and_install_package_from_repo.bat` script (Windows). This will build the package and install it in your local Python environment. If you make changes to the library, you can run this script again to update the package locally.
 
-*Linux and MacOS conveniences comming soon as well*
+*Linux and MacOS conveniences coming soon as well*
 
 ### From PyPI
 
