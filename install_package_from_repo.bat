@@ -1,0 +1,1 @@
+pip install . --force-reinstall --no-deps --no-cache-dir
