@@ -6,14 +6,14 @@ build-backend = "setuptools.build_meta"
 packages = ["tinytroupe"]
 
 [project]
-name = "TinyTroupe"
-version = "0.1.0"
+name = "tinytroupe"
+version = "0.2.0"
 authors = [
   { name="Paulo Salem", email="paulo.salem@microsoft.com" },
   { name="Nilo Garcia Silveira", email="nilog@microsoft.com" },
   { name="Olnei Fonseca", email="olneif@microsoft.com" }
 ]
-description = "LLM-based people simulation for design, validation and insight generation."
+description = "LLM-based people simulation for design, validation and insight generation in business."
 readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
@@ -27,7 +27,8 @@ dependencies = [
     "openai", "tiktoken",
     "msal",
     "rich", "requests", "chevron",
-    "llama-index", "transformers"
+    "llama-index", "llama-index-embeddings-huggingface", "llama-index-readers-web",
+    "pypandoc", "docx", "markdown"
 ]
 
 [project.urls]

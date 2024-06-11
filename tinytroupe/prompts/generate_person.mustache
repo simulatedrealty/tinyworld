@@ -1,4 +1,16 @@
-Please, generate a person based on the following context: {{context}}
+# Agent Generator
+
+Please generate an agent based on a general context and the particularities of the agent (if any). 
+The general context is the following: {{context}}.
+
+{{#agent_particularities}}
+The agent particularities, in turn, are: {{agent_particularities}}.
+{{/agent_particularities}}
+{{^agent_particularities}}
+There are no agent particularities in this case, so just generate an agent based on the general
+context.
+{{/agent_particularities}}
+
 To do it, you have to follow these directions:
   - You'll generate this response **only** in JSON format, no extra text, no Markdown elements.
   - Giving the context, please, be creative to generate details about the person for each of the fields in the response.
@@ -68,10 +80,13 @@ To do it, you have to follow these directions:
          }
        }
     - DO NOT generate repeated agents.
+    - NEVER repeat a name for an agent, because all agent names MUST be UNIQUE.
   
   Agents already generated (if any):
   {{#already_generated}}
   - {{.}}
+
+  Remember: NEVER repeat a name for an agent. All agent names MUST be UNIQUE.
   {{/already_generated}}
   {{^already_generated}}
   No agents generated yet.

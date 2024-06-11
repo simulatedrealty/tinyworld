@@ -2,6 +2,7 @@
 .pickle
 .llmapi.bin
 *.cache.*
+*.local.*
 .VSCodeCounter/
 
 # Byte-compiled / optimized / DLL files

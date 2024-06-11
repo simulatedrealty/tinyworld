@@ -4,10 +4,12 @@ agents interact with each other as well as external entities (e.g., search engin
 """
 
 import logging
+logger = logging.getLogger("tinytroupe")
 import copy
+from datetime import datetime, timedelta
 
 from tinytroupe.agent import *
-from tinytroupe.utils import name_or_empty
+from tinytroupe.utils import name_or_empty, pretty_datetime
 import tinytroupe.control as control
 from tinytroupe.control import transactional
  
@@ -25,25 +27,26 @@ class TinyWorld:
     all_environments = {} # name -> environment
 
     def __init__(self, name: str="A TinyWorld", agents=[], 
+                 initial_datetime=datetime.datetime.now(),
                  broadcast_if_no_target=True,
-                 communication_display=True,
-                 simulation_id=None):
+                 communication_display=True):
         """
         Initializes an environment.
 
         Args:
             name (str): The name of the environment.
             agents (list): A list of agents to add to the environment.
+            initial_datetime (datetime): The initial datetime of the environment, or None (i.e., explicit time is optional). 
+                Defaults to the current datetime in the real world.
             broadcast_if_no_target (bool): If True, broadcast actions if the target of an action is not found.
             communication_display (bool): If True, displays environment information.
-            simulation_id (str): The ID of the simulation. Defaults to None.
         """
-        self.logger = logging.getLogger("tinytroupe")
 
         self.name = name
+        self.current_datetime = initial_datetime
         self.broadcast_if_no_target = broadcast_if_no_target
         self.communication_display = communication_display
-        self.simulation_id = simulation_id # will be reset later if the agent is used within a specific simulation scope
+        self.simulation_id = None # will be reset later if the agent is used within a specific simulation scope
         
         
         self.agents = []
@@ -79,35 +82,172 @@ class TinyWorld:
     # Simulation control methods
     #######################################################################
     @transactional
-    def _step(self):
+    def _step(self, timedelta_per_step=None):
         """
         Performs a single step in the environment. This default implementation
         simply calls makes all agents in the environment act and properly
         handle the resulting actions. Subclasses might override this method to implement 
         different policies.
         """
-        
+        # increase current datetime if timedelta is given. This must happen before
+        # any other simulation updates, to make sure that the agents are acting
+        # in the correct time, particularly if only one step is being run.
+        self._advance_datetime(timedelta_per_step)
+
         # agents can act
         for agent in self.agents:
-            self.logger.debug(f"[{self.name}] Agent {name_or_empty(agent)} is acting.")
+            logger.debug(f"[{self.name}] Agent {name_or_empty(agent)} is acting.")
             agent.act()
             self._handle_actions(agent, agent.pop_latest_actions())
 
+    def _advance_datetime(self, timedelta):
+        """
+        Advances the current datetime of the environment by the specified timedelta.
+
+        Args:
+            timedelta (timedelta): The timedelta to advance the current datetime by.
+        """
+        if timedelta is not None:
+            self.current_datetime += timedelta
+        else:
+            logger.info(f"[{self.name}] No timedelta provided, so the datetime was not advanced.")
+
     @transactional
-    def run(self, steps: int):
+    def run(self, steps: int, timedelta_per_step=None):
         """
         Runs the environment for a given number of steps.
 
         Args:
             steps (int): The number of steps to run the environment for.
+            timedelta_per_step (timedelta, optional): The time interval between steps. Defaults to None.
         """
         for i in range(steps):
-            self.logger.info(f"[{self.name}] Running world simulation step {i+1} of {steps}.")
+            logger.info(f"[{self.name}] Running world simulation step {i+1} of {steps}.")
 
             if self.communication_display:
-                self._display_communication(cur_step=i+1, total_steps=steps, kind='step')
+                self._display_communication(cur_step=i+1, total_steps=steps, kind='step', timedelta_per_step=timedelta_per_step)
 
-            self._step()
+            self._step(timedelta_per_step=timedelta_per_step)
+    
+    @transactional
+    def skip(self, steps: int, timedelta_per_step=None):
+        """
+        Skips a given number of steps in the environment. That is to say, time shall pass, but no actions will be taken
+        by the agents or any other entity in the environment.
+
+        Args:
+            steps (int): The number of steps to skip.
+            timedelta_per_step (timedelta, optional): The time interval between steps. Defaults to None.
+        """
+        self._advance_datetime(steps * timedelta_per_step)
+
+    def run_minutes(self, minutes: int):
+        """
+        Runs the environment for a given number of minutes.
+
+        Args:
+            minutes (int): The number of minutes to run the environment for.
+        """
+        self.run(steps=minutes, timedelta_per_step=timedelta(minutes=1))
+    
+    def skip_minutes(self, minutes: int):
+        """
+        Skips a given number of minutes in the environment.
+
+        Args:
+            minutes (int): The number of minutes to skip.
+        """
+        self.skip(steps=minutes, timedelta_per_step=timedelta(minutes=1))
+    
+    def run_hours(self, hours: int):
+        """
+        Runs the environment for a given number of hours.
+
+        Args:
+            hours (int): The number of hours to run the environment for.
+        """
+        self.run(steps=hours, timedelta_per_step=timedelta(hours=1))
+    
+    def skip_hours(self, hours: int):
+        """
+        Skips a given number of hours in the environment.
+
+        Args:
+            hours (int): The number of hours to skip.
+        """
+        self.skip(steps=hours, timedelta_per_step=timedelta(hours=1))
+    
+    def run_days(self, days: int):
+        """
+        Runs the environment for a given number of days.
+
+        Args:
+            days (int): The number of days to run the environment for.
+        """
+        self.run(steps=days, timedelta_per_step=timedelta(days=1))
+    
+    def skip_days(self, days: int):
+        """
+        Skips a given number of days in the environment.
+
+        Args:
+            days (int): The number of days to skip.
+        """
+        self.skip(steps=days, timedelta_per_step=timedelta(days=1))
+    
+    def run_weeks(self, weeks: int):
+        """
+        Runs the environment for a given number of weeks.
+
+        Args:
+            weeks (int): The number of weeks to run the environment for.
+        """
+        self.run(steps=weeks, timedelta_per_step=timedelta(weeks=1))
+    
+    def skip_weeks(self, weeks: int):
+        """
+        Skips a given number of weeks in the environment.
+
+        Args:
+            weeks (int): The number of weeks to skip.
+        """
+        self.skip(steps=weeks, timedelta_per_step=timedelta(weeks=1))
+    
+    def run_months(self, months: int):
+        """
+        Runs the environment for a given number of months.
+
+        Args:
+            months (int): The number of months to run the environment for.
+        """
+        self.run(steps=months, timedelta_per_step=timedelta(weeks=4))
+    
+    def skip_months(self, months: int):
+        """
+        Skips a given number of months in the environment.
+
+        Args:
+            months (int): The number of months to skip.
+        """
+        self.skip(steps=months, timedelta_per_step=timedelta(weeks=4))
+    
+    def run_years(self, years: int):
+        """
+        Runs the environment for a given number of years.
+
+        Args:
+            years (int): The number of years to run the environment for.
+        """
+        self.run(steps=years, timedelta_per_step=timedelta(days=365))
+    
+    def skip_years(self, years: int):
+        """
+        Skips a given number of years in the environment.
+
+        Args:
+            years (int): The number of years to skip.
+        """
+        self.skip(steps=years, timedelta_per_step=timedelta(days=365))
 
     #######################################################################
     # Agent management methods
@@ -137,7 +277,7 @@ class TinyWorld:
 
         # check if the agent is not already in the environment
         if agent not in self.agents:
-            self.logger.debug(f"Adding agent {agent.name} to the environment.")
+            logger.debug(f"Adding agent {agent.name} to the environment.")
             
             # Agent names must be unique in the environment. 
             # Check if the agent name is already there.
@@ -148,7 +288,7 @@ class TinyWorld:
             else:
                 raise ValueError(f"Agent names must be unique, but '{agent.name}' is already in the environment.")
         else:
-            self.logger.warn(f"Agent {agent.name} is already in the environment.")
+            logger.warn(f"Agent {agent.name} is already in the environment.")
         
         return self # for chaining
 
@@ -159,7 +299,7 @@ class TinyWorld:
         Args:
             agent (TinyPerson): The agent to remove from the environment.
         """
-        self.logger.debug(f"Removing agent {agent.name} from the environment.")
+        logger.debug(f"Removing agent {agent.name} from the environment.")
         self.agents.remove(agent)
         del self.name_to_agent[agent.name]
 
@@ -169,7 +309,7 @@ class TinyWorld:
         """
         Removes all agents from the environment.
         """
-        self.logger.debug(f"Removing all agents from the environment.")
+        logger.debug(f"Removing all agents from the environment.")
         self.agents = []
         self.name_to_agent = {}
 
@@ -214,7 +354,7 @@ class TinyWorld:
             content = action["content"] if "content" in action else None
             target = action["target"] if "target" in action else None
 
-            self.logger.debug(f"[{self.name}] Handling action {action_type} from agent {name_or_empty(source)}. Content: {content}, target: {target}.")
+            logger.debug(f"[{self.name}] Handling action {action_type} from agent {name_or_empty(source)}. Content: {content}, target: {target}.")
 
             # only some actions require the enviroment to intervene
             if action_type == "REACH_OUT":
@@ -255,7 +395,7 @@ class TinyWorld:
         """
         target_agent = self.get_agent_by_name(target)
 
-        self.logger.debug(f"[{self.name}] Delivering message from {name_or_empty(source_agent)} to {name_or_empty(target_agent)}.")
+        logger.debug(f"[{self.name}] Delivering message from {name_or_empty(source_agent)} to {name_or_empty(target_agent)}.")
 
         if target_agent is not None:
             target_agent.listen(content, source=source_agent)
@@ -274,12 +414,51 @@ class TinyWorld:
             speech (str): The content of the message.
             source (AgentOrWorld, optional): The agent or environment that issued the message. Defaults to None.
         """
-        self.logger.debug(f"[{self.name}] Broadcasting message: '{speech}'.")
+        logger.debug(f"[{self.name}] Broadcasting message: '{speech}'.")
 
         for agent in self.agents:
             # do not deliver the message to the source
             if agent != source:
                 agent.listen(speech, source=source)
+    
+    @transactional
+    def broadcast_thought(self, thought: str, source: AgentOrWorld=None):
+        """
+        Broadcasts a thought to all agents in the environment.
+
+        Args:
+            thought (str): The content of the thought.
+        """
+        logger.debug(f"[{self.name}] Broadcasting thought: '{thought}'.")
+
+        for agent in self.agents:
+            agent.think(thought)
+    
+    @transactional
+    def broadcast_internal_goal(self, internal_goal: str):
+        """
+        Broadcasts an internal goal to all agents in the environment.
+
+        Args:
+            internal_goal (str): The content of the internal goal.
+        """
+        logger.debug(f"[{self.name}] Broadcasting internal goal: '{internal_goal}'.")
+
+        for agent in self.agents:
+            agent.internalize_goal(internal_goal)
+    
+    @transactional
+    def broadcast_context_change(self, context:list):
+        """
+        Broadcasts a context change to all agents in the environment.
+
+        Args:
+            context (list): The content of the context change.
+        """
+        logger.debug(f"[{self.name}] Broadcasting context change: '{context}'.")
+
+        for agent in self.agents:
+            agent.change_context(context)
 
     def make_everyone_accessible(self):
         """
@@ -296,12 +475,12 @@ class TinyWorld:
     ###########################################################
 
     # TODO better names for these "display" methods
-    def _display_communication(self, cur_step, total_steps, kind):
+    def _display_communication(self, cur_step, total_steps, kind, timedelta_per_step=None):
         """
         Displays the current communication and stores it in a buffer for later use.
         """
         if kind == 'step':
-            rendering = self._pretty_step(cur_step=cur_step, total_steps=total_steps) 
+            rendering = self._pretty_step(cur_step=cur_step, total_steps=total_steps, timedelta_per_step=timedelta_per_step) 
         else:
             raise ValueError(f"Unknown communication kind: {kind}")
 
@@ -350,8 +529,10 @@ class TinyWorld:
     def __repr__(self):
         return f"TinyWorld(name='{self.name}')"
 
-    def _pretty_step(self, cur_step, total_steps):
+    def _pretty_step(self, cur_step, total_steps, timedelta_per_step=None):
         rendering = f"{self.name} step {cur_step} of {total_steps}"
+        if timedelta_per_step is not None:
+            rendering += f" ({pretty_datetime(self.current_datetime)})"
 
         return rendering
 
@@ -361,7 +542,7 @@ class TinyWorld:
         """
         print(self.pretty_current_interactions(simplified=simplified, skip_system=skip_system))
 
-    def pretty_current_interactions(self, simplified=True, skip_system=True):
+    def pretty_current_interactions(self, simplified=True, skip_system=True, max_content_length=default_max_content_display_length):
       """
       Returns a pretty, readable, string with the current messages of agents in this environment.
       """
@@ -370,7 +551,7 @@ class TinyWorld:
       for agent in self.agents:
           agent_content = f"#### Interactions from the point of view of {agent.name} agent:\n"
           agent_content += f"**BEGIN AGENT {agent.name} HISTORY.**\n "
-          agent_content += agent.pretty_current_interactions(simplified=simplified, skip_system=skip_system) + "\n"
+          agent_content += agent.pretty_current_interactions(simplified=simplified, skip_system=skip_system, max_content_length=max_content_length) + "\n"
           agent_content += f"**FINISHED AGENT {agent.name} HISTORY.**\n "
           agent_contents.append(agent_content)      
           
@@ -390,15 +571,18 @@ class TinyWorld:
         to_copy = copy.copy(self.__dict__)
 
         # remove the logger and other fields
-        del to_copy["logger"]
         del to_copy['console']
         del to_copy['agents']
         del to_copy['name_to_agent']
+        del to_copy['current_datetime']
 
         state = copy.deepcopy(to_copy)
 
         # agents are encoded separately
         state["agents"] = [agent.encode_complete_state() for agent in self.agents]
+
+        # datetime also has to be encoded separately
+        state["current_datetime"] = self.current_datetime.isoformat()
 
         return state
     
@@ -433,6 +617,9 @@ class TinyWorld:
         
         # remove the agent states to update the rest of the environment
         del state["agents"]
+
+        # restore datetime
+        state["current_datetime"] = datetime.datetime.fromisoformat(state["current_datetime"])
 
         # restore other fields
         self.__dict__.update(state)
@@ -512,7 +699,7 @@ class TinySocialNetwork(TinyWorld):
             name (str): The name of the relation.
         """
 
-        self.logger.debug(f"Adding relation {name} between {agent_1.name} and {agent_2.name}.")
+        logger.debug(f"Adding relation {name} between {agent_1.name} and {agent_2.name}.")
 
         # agents must already be in the environment, if not they are first added
         if agent_1 not in self.agents:
@@ -539,7 +726,7 @@ class TinySocialNetwork(TinyWorld):
 
         # now update accessibility based on relations
         for relation_name, relation in self.relations.items():
-            self.logger.debug(f"Updating agents' observations for relation {relation_name}.")
+            logger.debug(f"Updating agents' observations for relation {relation_name}.")
             for agent_1, agent_2 in relation:
                 agent_1.make_agent_accessible(agent_2)
                 agent_2.make_agent_accessible(agent_1)

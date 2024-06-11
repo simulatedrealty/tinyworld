@@ -34,6 +34,44 @@ default_cache_api_calls = config["OpenAI"].getboolean("TINYPERSON_CACHE_API_CALL
 default_cache_file_name = config["OpenAI"].get("TINYPERSON_CACHE_FILE_NAME", "openai_api_cache.pickle")
 
 ###########################################################################
+# Model calling helpers
+###########################################################################
+class LLMCall:
+    """
+    A class that represents an LLM model call. It contains the input messages, the model configuration, and the model output.
+    """
+
+    # TODO finish this class <--------------------------------------------------------------------------------------------------------------------------------------
+    def __init__(self, system_template_name:str, user_template_name:str=None, **model_params):
+        """
+        Initializes an LLMCall instance with the specified system and user templates.
+        """
+        self.system_template_name = system_template_name
+        self.user_template_name = user_template_name
+        self.model_params = model_params
+    
+    def call(self, **rendering_configs):
+        """
+        Calls the LLM model with the specified rendering configurations.
+        """
+        self.messages = utils.compose_initial_LLM_messages_with_templates(self.system_template_name, self.user_template_name, rendering_configs)
+        
+
+        # call the LLM model
+        self.model_output = client().send_message(self.messages, **self.model_params)
+
+        if 'content' in self.model_output:
+            return self.model_output['content']
+        else:
+            logger.error(f"Model output does not contain 'content' key: {self.model_output}")
+            return None
+
+
+    def __repr__(self):
+        return f"LLMCall(messages={self.messages}, model_config={self.model_config}, model_output={self.model_output})"
+
+
+###########################################################################
 # Client class
 ###########################################################################
 

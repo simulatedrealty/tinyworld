@@ -15,3 +15,13 @@ utils.start_logger(config)
 # fix an issue in the rich library: we don't want margins in Jupyter!
 rich.jupyter.JUPYTER_HTML_FORMAT = \
     utils.inject_html_css_style_prefix(rich.jupyter.JUPYTER_HTML_FORMAT, "margin:0px;")
+
+# AI disclaimers
+print(\
+"""
+!!!!
+DISCLAIMER: TinyTroupe relies on Artificial Intelligence (AI) models to generate content. 
+The AI models are not perfect and may produce inappropriate or inacurate results. 
+For any serious or consequential use, please review the generated content before using it.
+!!!!
+""")

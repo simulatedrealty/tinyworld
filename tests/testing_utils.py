@@ -1,8 +1,9 @@
 """
 Testing utilities.
 """
-
+import os
 import sys
+from time import sleep
 sys.path.append('../../tinytroupe/')
 sys.path.append('../../')
 sys.path.append('..')
@@ -81,7 +82,7 @@ def proposition_holds(proposition: str) -> bool:
 
     system_prompt = f"""
     Check whether the following proposition is true or false. If it is
-    true, write "true", otherwise write "false".
+    true, write "true", otherwise write "false". Don't write anything else!
     """
 
     user_prompt = f"""
@@ -96,9 +97,9 @@ def proposition_holds(proposition: str) -> bool:
 
     # check the result
     cleaned_message = only_alphanumeric(next_message["content"])
-    if cleaned_message.lower() == "true":
+    if cleaned_message.lower().startswith("true"):
         return True
-    elif cleaned_message.lower() == "false":
+    elif cleaned_message.lower().startswith("false"):
         return False
     else:
         raise Exception(f"LLM returned unexpected result: {cleaned_message}")
@@ -108,6 +109,18 @@ def only_alphanumeric(string: str):
     Returns a string containing only alphanumeric characters.
     """
     return ''.join(c for c in string if c.isalnum())
+
+############################################################################################################
+# I/O utilities
+############################################################################################################
+
+def remove_file_if_exists(file_path):
+    """
+    Removes the file at the given path if it exists.
+    """
+    
+    if os.path.exists(file_path):
+        os.remove(file_path)
 
 
 ############################################################################################################
