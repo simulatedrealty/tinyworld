@@ -208,3 +208,49 @@ def test_ad_creation_scenario(setup, focus_group_world):
     res = extractor.extract_results_from_world(focus_group, verbose=True)
 
     assert proposition_holds(f"The following contains ideas for an apartment advertisement: '{res}'"), f"Proposition is false according to the LLM."
+
+def test_consumer_profiling_scenario(setup):
+
+    remove_file_if_exists("test_consumer_profiling_scenario.cache.json")
+    control.begin("test_consumer_profiling_scenario.cache.json")
+
+    general_context = \
+    """
+    We are performing market research, and in that examining the whole of the American population. We care for the opinion of everyone, from the simplest professions to those of the highest ranks. 
+    We are interested in the opinion of everyone, from the youngest to the oldest; from the most conservative, to the most liberal; from the educated, to the ignorant;
+    from the healthy to the sick; from rich to poor. You get the idea. We are surveying the market for bottled gazpacho, so we are interested in the opinion of everyone, 
+    from the most enthusiastic to the most skeptical.
+    """
+
+    consumer_factory = TinyPersonFactory(general_context)
+
+    from time import sleep
+
+
+    consumers = []
+    def interview_consumer_batch(n):
+        for i in range(n):
+            print(f"################################### Interviewing consumer {i+1} of {n} ###################################")
+            sleep(2)
+            consumer = consumer_factory.generate_person("A random person with highly detailed preferences.")
+            print(consumer.minibio())
+            #consumer.listen_and_act("Can you please present yourself, and tell us a bit about your background and preferences?")
+            consumer.listen_and_act("We are performing some market research and need to know you more. Can you please present yourself and also list your top-10 interests?")
+            #consumer.listen_and_act("Can you plese explain more about why you care for these things?")
+            consumer.listen_and_act(\
+                """
+                Would you buy bottled gazpacho if you went to the supermarket today? Why yes, or why not? Please be honest, we are not here to judge you, but just to learn from you.
+                We know these choices depend on many factors, but please make your best guess, consider your current situation in life, location, job and interests,
+                and tell us whether you would buy bottled gazpacho or not. To make it easier, start your response with "Yes, " or "No, ".
+                """)
+            
+            consumers.append(consumer)
+
+            control.checkpoint()
+    
+    interview_consumer_batch(15)
+
+    # check if the file was created
+    assert os.path.exists("test_consumer_profiling_scenario.cache.json"), "The checkpoint file should have been created."
+
+    control.end()

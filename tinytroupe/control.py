@@ -2,6 +2,8 @@
 Simulation controlling mechanisms.
 """
 import json
+import os
+import tempfile
 
 import tinytroupe
 import tinytroupe.utils as utils
@@ -21,6 +23,9 @@ class Simulation:
         self.name_to_agent = {} # {agent_name: agent, ...}
 
         self.environments = []
+
+        self.factories = [] # e.g., TinyPersonFactory instances
+        self.name_to_factory = {} # {factory_name: factory, ...}
 
         self.name_to_environment = {} # {environment_name: environment, ...}
         self.status = Simulation.STATUS_STOPPED
@@ -67,6 +72,7 @@ class Simulation:
         # local import to avoid circular dependencies
         from tinytroupe.agent import TinyPerson
         from tinytroupe.environment import TinyWorld
+        from tinytroupe.personfactory import TinyFactory
 
         if self.status == Simulation.STATUS_STOPPED:
             self.status = Simulation.STATUS_STARTED
@@ -79,9 +85,13 @@ class Simulation:
         # should we automatically checkpoint?
         self.auto_checkpoint = auto_checkpoint
 
-        # clear the agents and environments, we'll track them from now on
+        # clear the agents, environments and other simulated entities, we'll track them from now on
         TinyPerson.clear_agents()
         TinyWorld.clear_environments()
+        TinyFactory.clear_factories()
+
+        # All automated fresh ids will start from 0 again for this simulation
+        utils._fresh_id_counter = 0
 
         # load the cache file, if any
         if self.cache_path is not None:
@@ -111,6 +121,8 @@ class Simulation:
         """
         Adds an agent to the simulation.
         """
+        if agent.name in self.name_to_agent:
+            raise ValueError(f"Agent names must be unique, but '{agent.name}' is already defined.")
         agent.simulation_id = self.id
         self.agents.append(agent)
         self.name_to_agent[agent.name] = agent
@@ -120,9 +132,21 @@ class Simulation:
         """
         Adds an environment to the simulation.
         """
+        if environment.name in self.name_to_environment:
+            raise ValueError(f"Environment names must be unique, but '{environment.name}' is already defined.")
         environment.simulation_id = self.id
         self.environments.append(environment)
         self.name_to_environment[environment.name] = environment
+    
+    def add_factory(self, factory):
+        """
+        Adds a factory to the simulation.
+        """
+        if factory.name in self.name_to_factory:
+            raise ValueError(f"Factory names must be unique, but '{factory.name}' is already defined.")
+        factory.simulation_id = self.id
+        self.factories.append(factory)
+        self.name_to_factory[factory.name] = factory
 
     ###################################################################################################
     # Cache and execution chain mechanisms
@@ -244,7 +268,15 @@ class Simulation:
         """
         Saves the cache file to the given path. Always overwrites.
         """
-        json.dump(self.cached_trace, open(cache_path, "w"), indent=4)
+        try:
+            # Create a temporary file
+            with tempfile.NamedTemporaryFile('w', delete=False) as temp:
+                json.dump(self.cached_trace, temp, indent=4)
+
+            # Replace the original file with the temporary file
+            os.replace(temp.name, cache_path)
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
         self.has_unsaved_cache_changes = False
 
@@ -303,6 +335,11 @@ class Simulation:
         for environment in self.environments:
             state["environments"].append(environment.encode_complete_state())
         
+        # Encode factories
+        state["factories"] = []
+        for factory in self.factories:
+            state["factories"].append(factory.encode_complete_state())
+        
         #print("DEBUG: ", state)
         
         return state
@@ -322,6 +359,17 @@ class Simulation:
         ##tinytroupe.environment.TinyWorld.clear_environments()
         ##tinytroupe.agent.TinyPerson.clear_agents()
 
+        logger.debug(f"Decoding simulation state: {state['factories']}")
+        logger.debug(f"Registered factories: {self.name_to_factory}")
+        logger.debug(f"Registered agents: {self.name_to_agent}")
+        logger.debug(f"Registered environments: {self.name_to_environment}")
+
+        # Decode factories
+        for factory_state in state["factories"]:
+            factory = self.name_to_factory[factory_state["name"]]
+            factory.decode_complete_state(factory_state)
+            # TODO self.factories.append(factory)
+
         # Decode environments
         ###self.environments = []
         for environment_state in state["environments"]:
@@ -331,7 +379,7 @@ class Simulation:
                 environment.decode_complete_state(environment_state)
                 if environment.communication_display:
                     environment.pop_and_display_latest_communications()
-                self.environments.append(environment)
+                # TODO self.environments.append(environment)
 
             except Exception as e:
                 raise ValueError(f"Environment {environment_state['name']} is not in the simulation, thus cannot be decoded there.") from e
@@ -351,7 +399,7 @@ class Simulation:
                         agent.pop_and_display_latest_communications()
             except Exception as e:
                 raise ValueError(f"Agent {agent_state['name']} is not in the simulation, thus cannot be decoded there.") from e        
-            
+
             # TODO
             # the agent is not yet in the simulation, so it was not decoded by the environment
             #if not tinytroupe.agent.TinyPerson.has_agent(agent_name):
@@ -377,30 +425,39 @@ class Transaction:
         # local import to avoid circular dependencies
         from tinytroupe.agent import TinyPerson
         from tinytroupe.environment import TinyWorld
+        from tinytroupe.personfactory import TinyFactory
 
         self.obj_under_transaction = obj_under_transaction
         self.simulation = simulation
         self.function_name = function.__name__
         self.function = function
         self.args = args
-        self.kwargs = kwargs
+        self.kwargs = kwargs    
 
         #
         # If we have an ongoing simulation, set the simulation id of the object under transaction if it is not already set.
         #
         if simulation is not None:
-            if obj_under_transaction.simulation_id is not None:
+            if hasattr(obj_under_transaction, 'simulation_id') and obj_under_transaction.simulation_id is not None:
                 if obj_under_transaction.simulation_id != simulation.id:
                     raise ValueError(f"Object {obj_under_transaction} is already captured by a different simulation (id={obj_under_transaction.simulation_id}), \
                                     and cannot be captured by simulation id={simulation.id}.")
+                
+                logger.debug(f">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Object {obj_under_transaction} is already captured by simulation {simulation.id}.")
             else:
                 # if is a TinyPerson, add the agent to the simulation
                 if isinstance(obj_under_transaction, TinyPerson):
                     simulation.add_agent(obj_under_transaction)
+                    logger.debug(f">>>>>>>>>>>>>>>>>>>>>>> Added agent {obj_under_transaction} to simulation {simulation.id}.")
 
                 # if is a TinyWorld, add the environment to the simulation
                 elif isinstance(obj_under_transaction, TinyWorld):
                     simulation.add_environment(obj_under_transaction)
+                
+                # if is a TinyFactory, add the factory to the simulation
+                elif isinstance(obj_under_transaction, TinyFactory):
+                    simulation.add_factory(obj_under_transaction)
+                    logger.debug(f">>>>>>>>>>>>>>>>>>>>>>> Added factory {obj_under_transaction} to simulation {simulation.id}.")
 
                 else:
                     raise ValueError(f"Object {obj_under_transaction} (type = {type(obj_under_transaction)}) is not a TinyPerson or TinyWorld instance, and cannot be captured by the simulation.")
@@ -475,6 +532,7 @@ class Transaction:
         # local import to avoid circular dependencies
         from tinytroupe.agent import TinyPerson
         from tinytroupe.environment import TinyWorld
+        from tinytroupe.personfactory import TinyFactory
 
 
         # if the output is a TinyPerson, encode it
@@ -485,6 +543,9 @@ class Transaction:
         # if it is a TinyWorld, encode it
         elif isinstance(output, TinyWorld):
             return {"type": "TinyWorldRef", "name": output.name}
+        # if it is a TinyFactory, encode it
+        elif isinstance(output, TinyFactory):
+            return {"type": "TinyFactoryRef", "name": output.name}
         # if it is one of the types supported by JSON, encode it as is
         elif isinstance(output, (int, float, str, bool, list, dict, tuple)):
             return {"type": "JSON", "value": output}
@@ -499,6 +560,7 @@ class Transaction:
         # local import to avoid circular dependencies
         from tinytroupe.agent import TinyPerson
         from tinytroupe.environment import TinyWorld
+        from tinytroupe.personfactory import TinyFactory
 
         if encoded_output is None:
             return None
@@ -506,6 +568,8 @@ class Transaction:
             return TinyPerson.get_agent_by_name(encoded_output["name"])
         elif encoded_output["type"] == "TinyWorldRef":
             return TinyWorld.get_environment_by_name(encoded_output["name"])
+        elif encoded_output["type"] == "TinyFactoryRef":
+            return TinyFactory.get_factory_by_name(encoded_output["name"])
         elif encoded_output["type"] == "JSON":
             return encoded_output["value"]
         else:
@@ -518,6 +582,10 @@ def transactional(func):
     def wrapper(*args, **kwargs):
         obj_under_transaction = args[0]
         simulation = current_simulation()
+        obj_sim_id = obj_under_transaction.simulation_id if hasattr(obj_under_transaction, 'simulation_id') else None
+
+        logger.debug(f"-----------------------------------------> Transaction: {func.__name__} with args {args[1:]} and kwargs {kwargs} under simulation {obj_sim_id}.")
+        
         transaction = Transaction(obj_under_transaction, simulation, func, *args, **kwargs)
         result = transaction.execute()
         return result

@@ -3,8 +3,12 @@ General utilities and convenience functions.
 """
 import re
 import json
+import os
 import hashlib
+import textwrap
 import logging
+import chevron
+from datetime import datetime
 from pathlib import Path
 import configparser
 from typing import Any, TypeVar, Union
@@ -13,14 +17,86 @@ AgentOrWorld = Union["TinyPerson", "TinyWorld"]
 # logger
 logger = logging.getLogger("tinytroupe")
 
-def name_or_empty(named_entity: AgentOrWorld):
+from tinytroupe import config
+rai_harmful_content_prevention = config["Simulation"].getboolean(
+    "RAI_HARMFUL_CONTENT_PREVENTION", True 
+)
+
+rai_copyright_infringement_prevention = config["Simulation"].getboolean(
+    "RAI_COPYRIGHT_INFRINGEMENT_PREVENTION", True
+)
+
+################################################################################
+# Model input utilities
+################################################################################
+
+def compose_initial_LLM_messages_with_templates(system_template_name:str, user_template_name:str=None, rendering_configs:dict={}) -> list:
     """
-    Returns the name of the specified agent or environment, or an empty string if the agent is None.
+    Composes the initial messages for the LLM model call, under the assumption that it always involves 
+    a system (overall task description) and an optional user message (specific task description). 
+    These messages are composed using the specified templates and rendering configurations.
     """
-    if named_entity is None:
+
+    system_prompt_template_path = os.path.join(os.path.dirname(__file__), f'prompts/{system_template_name}')
+    user_prompt_template_path = os.path.join(os.path.dirname(__file__), f'prompts/{user_template_name}')
+
+    messages = []
+
+    messages.append({"role": "system", 
+                         "content": chevron.render(
+                             open(system_prompt_template_path).read(), 
+                             rendering_configs)})
+    
+    # optionally add a user message
+    if user_template_name is not None:
+        messages.append({"role": "user", 
+                            "content": chevron.render(
+                                    open(user_prompt_template_path).read(), 
+                                    rendering_configs)})
+    return messages
+
+
+################################################################################	
+# Model output utilities
+################################################################################
+def extract_json(text: str) -> dict:
+    """
+    Extracts a JSON object from a string, ignoring: any text before the first 
+    opening curly brace; and any Markdown opening (```json) or closing(```) tags.
+    """
+    try:
+        # remove any text before the first opening curly or square braces, using regex. Leave the braces.
+        text = re.sub(r'^.*?({|\[)', r'\1', text, flags=re.DOTALL)
+
+        # remove any trailing text after the LAST closing curly or square braces, using regex. Leave the braces.
+        text  =  re.sub(r'(}|\])(?!.*(\]|\})).*$', r'\1', text, flags=re.DOTALL)
+        
+        # remove invalid escape sequences, which show up sometimes
+        # replace \' with just '
+        text =  re.sub("\\'", "'", text) #re.sub(r'\\\'', r"'", text)
+
+        # return the parsed JSON object
+        return json.loads(text)
+    
+    except ValueError:
+        return {}
+
+def extract_code_block(text: str) -> str:
+    """
+    Extracts a code block from a string, ignoring any text before the first 
+    opening triple backticks and any text after the closing triple backticks.
+    """
+    try:
+        # remove any text before the first opening triple backticks, using regex. Leave the backticks.
+        text = re.sub(r'^.*?(```)', r'\1', text, flags=re.DOTALL)
+
+        # remove any trailing text after the LAST closing triple backticks, using regex. Leave the backticks.
+        text  =  re.sub(r'(```)(?!.*```).*$', r'\1', text, flags=re.DOTALL)
+        
+        return text
+    
+    except ValueError:
         return ""
-    else:
-        return named_entity.name
 
 ################################################################################
 # Model control utilities
@@ -50,33 +126,48 @@ def repeat_on_error(retries:int, exceptions:list):
                         continue
         return wrapper
     return decorator
-    
+   
 
-
-################################################################################	
-# Model output utilities
 ################################################################################
-def extract_json(text: str) -> dict:
+# Validation
+################################################################################
+def check_valid_fields(obj: dict, valid_fields: list) -> None:
     """
-    Extracts a JSON object from a string, ignoring: any text before the first 
-    opening curly brace; and any Markdown opening (```json) or closing(```) tags.
+    Checks whether the fields in the specified dict are valid, according to the list of valid fields. If not, raises a ValueError.
     """
-    try:
-        # remove any text before the first opening curly or square braces, using regex. Leave the braces.
-        text = re.sub(r'^.*?({|\[)', r'\1', text, flags=re.DOTALL)
-
-        # remove any trailing text after the LAST closing curly or square braces, using regex. Leave the braces.
-        text  =  re.sub(r'(}|\])(?!.*(\]|\})).*$', r'\1', text, flags=re.DOTALL)
-        
-        # remove invalid escape sequences, which show up sometimes
-        # replace \' with just '
-        text =  re.sub("\\'", "'", text) #re.sub(r'\\\'', r"'", text)
-
-        # return the parsed JSON object
-        return json.loads(text)
+    for key in obj:
+        if key not in valid_fields:
+            raise ValueError(f"Invalid key {key} in dictionary. Valid keys are: {valid_fields}")
     
-    except ValueError:
-        return {}
+################################################################################
+# Prompt engineering
+################################################################################
+def add_rai_template_variables_if_enabled(template_variables: dict) -> dict:
+    """
+    Adds the RAI template variables to the specified dictionary, if the RAI disclaimers are enabled.
+    These can be configured in the config.ini file. If enabled, the variables will then load the RAI disclaimers from the 
+    appropriate files in the prompts directory. Otherwise, the variables will be set to None.
+
+    Args:
+        template_variables (dict): The dictionary of template variables to add the RAI variables to.
+
+    Returns:
+        dict: The updated dictionary of template variables.
+    """
+
+    # Harmful content
+    with open(os.path.join(os.path.dirname(__file__), "prompts/rai_harmful_content_prevention.md"), "r") as f:
+        rai_harmful_content_prevention_content = f.read()
+
+    template_variables['rai_harmful_content_prevention'] = rai_harmful_content_prevention_content if rai_harmful_content_prevention else None
+
+    # Copyright infringement
+    with open(os.path.join(os.path.dirname(__file__), "prompts/rai_copyright_infringement_prevention.md"), "r") as f:
+        rai_copyright_infringement_prevention_content = f.read()
+
+    template_variables['rai_copyright_infringement_prevention'] = rai_copyright_infringement_prevention_content if rai_copyright_infringement_prevention else None
+
+    return template_variables
 
 ################################################################################
 # Rendering and markup 
@@ -91,15 +182,30 @@ def inject_html_css_style_prefix(html, style_prefix_attributes):
     """
     return html.replace('style="', f'style="{style_prefix_attributes};')
 
-def break_text_at_length(text: str, max_length: int=None) -> str:
+def break_text_at_length(text: Union[str, dict], max_length: int=None) -> str:
     """
-    Breaks the text at the specified length, inserting a "(...)" string at the break point.
+    Breaks the text (or JSON) at the specified length, inserting a "(...)" string at the break point.
     If the maximum length is `None`, the content is returned as is.
     """
+    if isinstance(text, dict):
+        text = json.dumps(text, indent=4)
+
     if max_length is None or len(text) <= max_length:
         return text
     else:
         return text[:max_length] + " (...)"
+
+def pretty_datetime(dt: datetime) -> str:
+    """
+    Returns a pretty string representation of the specified datetime object.
+    """
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+def dedent(text: str) -> str:
+    """
+    Dedents the specified text, removing any leading whitespace and identation.
+    """
+    return textwrap.dedent(text).strip()
 
 ################################################################################
 # IO and startup utilities
@@ -159,6 +265,15 @@ def start_logger(config: configparser.ConfigParser):
 ################################################################################
 # Other
 ################################################################################
+def name_or_empty(named_entity: AgentOrWorld):
+    """
+    Returns the name of the specified agent or environment, or an empty string if the agent is None.
+    """
+    if named_entity is None:
+        return ""
+    else:
+        return named_entity.name
+
 def custom_hash(obj):
     """
     Returns a hash for the specified object. The object is first converted
@@ -167,3 +282,12 @@ def custom_hash(obj):
     """
 
     return hashlib.sha256(str(obj).encode()).hexdigest()
+
+_fresh_id_counter = 0
+def fresh_id():
+    """
+    Returns a fresh ID for a new object. This is useful for generating unique IDs for objects.
+    """
+    global _fresh_id_counter
+    _fresh_id_counter += 1
+    return _fresh_id_counter
