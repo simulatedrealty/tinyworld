@@ -29,7 +29,7 @@ TinyTroupe is intended for:
   
 TinyTroupe IS NOT intended for:
   - direct interaction with users. Rather, programmers relying on TinyTroupe for products should create their own layer of responsible AI to ensure simulation results are suitable.
-  - policy decision making. Rather, any decision made using TinyTroupe simulations should consider that the simulation results might not reflect reality and as such must be used very carefully for anything that has real world impact.
+  - policy or any consequential decision making. Rather, any decision made using TinyTroupe simulations should consider that the simulation results might not reflect reality and as such must be used very carefully for anything that has real world impact.
 
 ## How was TinyTroupe evaluated? What metrics are used to measure performance?
 

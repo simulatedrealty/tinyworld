@@ -1,8 +1,6 @@
 """
 Tools allow agents to accomplish specialized tasks.
 """
-
-# TODO UNDER CONSTRUCTION <---------------------------------------------------------------------------------------------------
 import textwrap
 import json
 import copy
@@ -13,9 +11,10 @@ logger = logging.getLogger("tinytroupe")
 import tinytroupe.utils as utils
 from tinytroupe.extraction import ArtifactExporter
 from tinytroupe.enrichment import Enricher
+from tinytroupe.utils import JsonSerializableRegistry
 
 
-class TinyTool:
+class TinyTool(JsonSerializableRegistry):
 
     def __init__(self, name, description, owner=None, real_world_side_effects=False, exporter=None, enricher=None):
         """
@@ -63,42 +62,8 @@ class TinyTool:
         self._enforce_ownership(agent)
         self._process_action(agent, action)
 
-    ###########################################################
-    # IO
-    ###########################################################
 
-    def to_json(self) -> dict:
-        """
-        Returns a JSON representation of the object.
-        """
-        to_copy = copy.copy(self.__dict__)
-
-        # delete the logger and other attributes that cannot be serialized
-        del to_copy["exporter"]
-        del to_copy["enricher"]
-
-        to_copy["exporter"] = self.exporter.to_json() if self.exporter is not None else None
-        to_copy["enricher"] = self.enricher.to_json() if self.enricher is not None else None
-
-        state = copy.deepcopy(to_copy)
-
-        return state
-
-    def from_json(self, json_dict: dict):
-        """
-        Loads a JSON representation of the object.
-        """
-        # instantiates the current class of the object, without specifying the exact class
-        state = copy.deepcopy(json_dict)
-
-        state["exporter"] = ArtifactExporter.from_json(state["exporter"]) if state["exporter"] is not None else None
-        state["enricher"] = Enricher.from_json(state["enricher"]) if state["enricher"] is not None else None
-
-        self.__dict__ = state
-
-        return self
-
-
+# TODO under development
 class TinyCalendar(TinyTool):
 
     def __init__(self, owner=None):
@@ -154,7 +119,7 @@ class TinyCalendar(TinyTool):
             """
               
             """
-            # TODO <----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            # TODO
 
         return textwrap.dedent(prompt)
     

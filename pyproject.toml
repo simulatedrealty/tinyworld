@@ -7,11 +7,9 @@ packages = ["tinytroupe"]
 
 [project]
 name = "tinytroupe"
-version = "0.2.0"
+version = "0.3.0"
 authors = [
-  { name="Paulo Salem", email="paulo.salem@microsoft.com" },
-  { name="Nilo Garcia Silveira", email="nilog@microsoft.com" },
-  { name="Olnei Fonseca", email="olneif@microsoft.com" }
+  { name="Paulo Salem", email="paulo.salem@microsoft.com" }
 ]
 description = "LLM-based people simulation for design, validation and insight generation in business."
 readme = "README.md"
@@ -23,12 +21,15 @@ classifiers = [
 ]
 
 dependencies = [
-    "pandas", "pytest",                      
-    "openai", "tiktoken",
+    "pandas", 
+    "pytest",                      
+    "openai >= 1.40", 
+    "tiktoken",
     "msal",
     "rich", "requests", "chevron",
     "llama-index", "llama-index-embeddings-huggingface", "llama-index-readers-web",
-    "pypandoc", "docx", "markdown"
+    "pypandoc", "docx", "markdown",
+    "jupyter"
 ]
 
 [project.urls]

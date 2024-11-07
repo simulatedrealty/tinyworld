@@ -188,8 +188,11 @@ class TinyPersonFactory(TinyFactory):
         agent_spec = None
         attempt = 0
         while agent_spec is None and attempt < attepmpts:
-            agent_spec = aux_generate()
-            attempt += 1
+            try:
+                attempt += 1
+                agent_spec = aux_generate()
+            except Exception as e:
+                logger.error(f"Error while generating agent specification: {e}")
         
         # create the fresh agent
         if agent_spec is not None:
@@ -201,6 +204,7 @@ class TinyPersonFactory(TinyFactory):
             self.generated_names.append(person.get("name").lower())
             return person
         else:
+            logger.error(f"Could not generate an agent after {attepmpts} attempts.")
             return None
         
     

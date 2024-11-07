@@ -3,17 +3,21 @@ import logging
 logger = logging.getLogger("tinytroupe")
 
 import sys
-sys.path.append('../../tinytroupe/')
-sys.path.append('../../')
-sys.path.append('..')
+sys.path.insert(0, '../../tinytroupe/') # ensures that the package is imported from the parent directory, not the Python installation
+sys.path.insert(0, '../../') # ensures that the package is imported from the parent directory, not the Python installation
+sys.path.insert(0, '..') # ensures that the package is imported from the parent directory, not the Python installation
 
-from tinytroupe.examples import oscar, lisa
+#sys.path.append('../../tinytroupe/')
+#sys.path.append('../../')
+#sys.path.append('..')
+
+from tinytroupe.examples import create_oscar_the_architect, create_lisa_the_data_scientist
 
 from testing_utils import *
 
 def test_act(setup):
 
-    for agent in [oscar(), lisa()]:
+    for agent in [create_oscar_the_architect(), create_lisa_the_data_scientist()]:
 
         actions = agent.listen_and_act("Tell me a bit about your life.", return_actions=True)
 
@@ -25,7 +29,7 @@ def test_act(setup):
 
 def test_listen(setup):
     # test that the agent listens to a speech stimulus and updates its current messages
-    for agent in [oscar(), lisa()]:
+    for agent in [create_oscar_the_architect(), create_lisa_the_data_scientist()]:
         agent.listen("Hello, how are you?")
 
         assert len(agent.current_messages) > 0, f"{agent.name} should have at least one message in its current messages."
@@ -35,7 +39,7 @@ def test_listen(setup):
 
 def test_define(setup):
     # test that the agent defines a value to its configuration and resets its prompt
-    for agent in [oscar(), lisa()]:
+    for agent in [create_oscar_the_architect(), create_lisa_the_data_scientist()]:
         # save the original prompt
         original_prompt = agent.current_messages[0]['content']
 
@@ -53,7 +57,7 @@ def test_define(setup):
 
 def test_define_several(setup):
     # Test that defining several values to a group works as expected
-    for agent in [oscar(), lisa()]:
+    for agent in [create_oscar_the_architect(), create_lisa_the_data_scientist()]:
         agent.define_several(group="skills", records=["Python", "Machine learning", "GPT-3"])
         assert "Python" in agent._configuration["skills"], f"{agent.name} should have Python as a skill."
         assert "Machine learning" in agent._configuration["skills"], f"{agent.name} should have Machine learning as a skill."
@@ -61,8 +65,8 @@ def test_define_several(setup):
 
 def test_socialize(setup):
     # Test that socializing with another agent works as expected
-    an_oscar = oscar()
-    a_lisa = lisa()
+    an_oscar = create_oscar_the_architect()
+    a_lisa = create_lisa_the_data_scientist()
     for agent in [an_oscar, a_lisa]:
         other = a_lisa if agent.name == "Oscar" else an_oscar
         agent.make_agent_accessible(other, relation_description="My friend")
@@ -74,7 +78,7 @@ def test_socialize(setup):
 
 def test_see(setup):
     # Test that seeing a visual stimulus works as expected
-    for agent in [oscar(), lisa()]:
+    for agent in [create_oscar_the_architect(), create_lisa_the_data_scientist()]:
         agent.see("A beautiful sunset over the ocean.")
         actions = agent.act(return_actions=True)
         assert len(actions) >= 1, f"{agent.name} should have at least one action to perform."
@@ -83,7 +87,7 @@ def test_see(setup):
 
 def test_think(setup):
     # Test that thinking about something works as expected
-    for agent in [oscar(), lisa()]:
+    for agent in [create_oscar_the_architect(), create_lisa_the_data_scientist()]:
         agent.think("I will tell everyone right now how awesome life is!")
         actions = agent.act(return_actions=True)
         assert len(actions) >= 1, f"{agent.name} should have at least one action to perform."
@@ -92,7 +96,7 @@ def test_think(setup):
 
 def test_internalize_goal(setup):
     # Test that internalizing a goal works as expected
-    for agent in [oscar(), lisa()]:
+    for agent in [create_oscar_the_architect(), create_lisa_the_data_scientist()]:
         agent.internalize_goal("I want to learn more about GPT-3.")
         actions = agent.act(return_actions=True)
         assert len(actions) >= 1, f"{agent.name} should have at least one action to perform."
@@ -101,7 +105,7 @@ def test_internalize_goal(setup):
 
 def test_move_to(setup):
     # Test that moving to a new location works as expected
-    for agent in [oscar(), lisa()]:
+    for agent in [create_oscar_the_architect(), create_lisa_the_data_scientist()]:
         agent.move_to("New York", context=["city", "busy", "diverse"])
         assert agent._configuration["current_location"] == "New York", f"{agent.name} should have New York as the current location."
         assert "city" in agent._configuration["current_context"], f"{agent.name} should have city as part of the current context."
@@ -110,8 +114,29 @@ def test_move_to(setup):
 
 def test_change_context(setup):
     # Test that changing the context works as expected
-    for agent in [oscar(), lisa()]:
+    for agent in [create_oscar_the_architect(), create_lisa_the_data_scientist()]:
         agent.change_context(["home", "relaxed", "comfortable"])
         assert "home" in agent._configuration["current_context"], f"{agent.name} should have home as part of the current context."
         assert "relaxed" in agent._configuration["current_context"], f"{agent.name} should have relaxed as part of the current context."
         assert "comfortable" in agent._configuration["current_context"], f"{agent.name} should have comfortable as part of the current context."
+
+def test_save_spec(setup):   
+    for agent in [create_oscar_the_architect(), create_lisa_the_data_scientist()]:
+        # save to a file
+        agent.save_spec(get_relative_to_test_path(f"test_exports/serialization/{agent.name}.tinyperson.json"), include_memory=True)
+
+        # check that the file exists
+        assert os.path.exists(get_relative_to_test_path(f"test_exports/serialization/{agent.name}.tinyperson.json")), f"{agent.name} should have saved the file."
+
+        # load the file to see if the agent is the same. The agent name should be different because it TinyTroupe does not allow two agents with the same name.
+        loaded_name = f"{agent.name}_loaded"
+        loaded_agent = TinyPerson.load_spec(get_relative_to_test_path(f"test_exports/serialization/{agent.name}.tinyperson.json"), new_agent_name=loaded_name)
+
+        # check that the loaded agent is the same as the original
+        assert loaded_agent.name == loaded_name, f"{agent.name} should have the same name as the loaded agent."
+        
+        assert agents_configs_are_equal(agent, loaded_agent, ignore_name=True), f"{agent.name} should have the same configuration as the loaded agent, except for the name."
+        
+              
+    
+    

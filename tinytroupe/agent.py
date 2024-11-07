@@ -23,46 +23,56 @@ import chevron  # to parse Mustache templates
 import logging
 logger = logging.getLogger("tinytroupe")
 import tinytroupe.utils as utils
+from tinytroupe.utils import post_init
 from tinytroupe.control import transactional
 from tinytroupe.control import current_simulation
 from rich import print
 import copy
+from tinytroupe.utils import JsonSerializableRegistry
 
 from typing import Any, TypeVar, Union
 
 Self = TypeVar("Self", bound="TinyPerson")
 AgentOrWorld = Union[Self, "TinyWorld"]
 
+###########################################################################
+# Default parameter values
+###########################################################################
+# We'll use various configuration elements below
+config = utils.read_config_file()
+
+default = {}
+default["embedding_model"] = config["OpenAI"].get("EMBEDDING_MODEL", "text-embedding-3-small")
+default["max_content_display_length"] = config["OpenAI"].getint("MAX_CONTENT_DISPLAY_LENGTH", 1024)
+
+
 ## LLaMa-Index configs ########################################################
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+#from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core import Settings, VectorStoreIndex, SimpleDirectoryReader
 from llama_index.readers.web import SimpleWebPageReader
 
 
 # this will be cached locally by llama-index, in a OS-dependend location
-Settings.embed_model = HuggingFaceEmbedding(
-    model_name="BAAI/bge-small-en-v1.5"
-)
+
+##Settings.embed_model = HuggingFaceEmbedding(
+##    model_name="BAAI/bge-small-en-v1.5"
+##)
+
+llmaindex_openai_embed_model = OpenAIEmbedding(model=default["embedding_model"], embed_batch_size=10)
+Settings.embed_model = llmaindex_openai_embed_model
 ###############################################################################
 
 
 from tinytroupe import openai_utils
 from tinytroupe.utils import name_or_empty, break_text_at_length, repeat_on_error
 
-from tinytroupe import config
-
-default_max_content_display_length = config["OpenAI"].getint(
-    "TINYPERSON_MAX_CONTENT_DISPLAY_LENGTH", 1024
-)
-
-
-
-
 
 #######################################################################################################################
 # TinyPerson itself
 #######################################################################################################################
-class TinyPerson:
+@post_init
+class TinyPerson(JsonSerializableRegistry):
     """A simulated person in the TinyTroupe universe."""
 
     # The maximum number of actions that an agent is allowed to perform before DONE.
@@ -71,12 +81,20 @@ class TinyPerson:
 
     PP_TEXT_WIDTH = 100
 
+    serializable_attributes = ["name", "episodic_memory", "semantic_memory", "_mental_faculties", "_configuration"]
+
     # A dict of all agents instantiated so far.
     all_agents = {}  # name -> agent
 
+    # The communication style for all agents: "simplified" or "full".
+    communication_style:str="simplified"
+    
+    # Whether to display the communication or not. True is for interactive applications, when we want to see simulation
+    # outputs as they are produced.
+    communication_display:bool=True
+    
+
     def __init__(self, name:str=None, 
-                 communication_style:str="simplified", communication_display:bool=True,
-                 spec_path:str=None,
                  episodic_memory=None,
                  semantic_memory=None,
                  mental_faculties:list=None):
@@ -85,47 +103,42 @@ class TinyPerson:
 
         Args:
             name (str): The name of the TinyPerson. Either this or spec_path must be specified.
-            communication_style (str, optional): The communication style: "simplified" or "full". Defaults to "simplified".
-            communication_display (bool, optional): Whether to display the communication or not.
-                True is for interactive applications, when we want to see simulation
-                outputs as they are produced. Defaults to True.
-            spec_path (str, optional): The path to a JSON file containing the TinyPerson's configuration.
-                Defaults to None, in which case the TinyPerson is created from scratch. If None, the
-                TinyPerson's name must be specified.
             episodic_memory (EpisodicMemory, optional): The memory implementation to use. Defaults to EpisodicMemory().
+            semantic_memory (SemanticMemory, optional): The memory implementation to use. Defaults to SemanticMemory().
+            mental_faculties (list, optional): A list of mental faculties to add to the agent. Defaults to None.
         """
 
-        self.communication_style = communication_style
-        self.communication_display = communication_display
-        
+        # NOTE: default values will be given in the _post_init method, as that's shared by 
+        #       direct initialization as well as via deserialization.
 
-        self._prompt_template_path = os.path.join(
-            os.path.dirname(__file__), "prompts/basic_agent.mustache"
-        )
-        self._init_system_message = None  # initialized later
-
-        self.current_messages = []
-        
         if episodic_memory is not None:
             self.episodic_memory = episodic_memory
-        else:
-            # This default value MUST NOT be in the method signature, otherwise it will be shared across all instances.
-            # Yeah, I'm programming in Python because I must, not because I want to.
-            self.episodic_memory = EpisodicMemory() 
         
         if semantic_memory is not None:
             self.semantic_memory = semantic_memory
-        else:
-            # This default value MUST NOT be in the method signature, otherwise it will be shared across all instances.
-            # Yeah, I'm programming in Python because I must, not because I want to.
-            self.semantic_memory = SemanticMemory()
 
         # Mental faculties
         if mental_faculties is not None:
             self._mental_faculties = mental_faculties
-        else:
-            self._mental_faculties = []
+        
+        assert name is not None, "A TinyPerson must have a name."
+        self.name = name
 
+        # @post_init makes sure that _post_init is called after __init__
+
+    
+    def _post_init(self, **kwargs):
+        """
+        This will run after __init__, since the class has the @post_init decorator.
+        It is convenient to separate some of the initialization processes to make deserialize easier.
+        """
+
+        ############################################################
+        # Default values
+        ############################################################
+
+        self.current_messages = []
+        
         # the current environment in which the agent is acting
         self.environment = None
 
@@ -141,15 +154,21 @@ class TinyPerson:
         # saving these communications to another output form later (e.g., caching)
         self._displayed_communications_buffer = []
 
-        # load the configuration from a JSON file, if specified
-        if spec_path is not None:
-            self._load_spec(spec_path)
+        if not hasattr(self, 'episodic_memory'):
+            # This default value MUST NOT be in the method signature, otherwise it will be shared across all instances.
+            self.episodic_memory = EpisodicMemory()
+        
+        if not hasattr(self, 'semantic_memory'):
+            # This default value MUST NOT be in the method signature, otherwise it will be shared across all instances.
+            self.semantic_memory = SemanticMemory()
+        
+        # _mental_faculties
+        if not hasattr(self, '_mental_faculties'):
+            # This default value MUST NOT be in the method signature, otherwise it will be shared across all instances.
+            self._mental_faculties = []
 
-        # otherwise, create a new configuration
-        else:
-            assert name is not None, "A TinyPerson must have a name."
-
-            self.name = name
+        # create the configuration dictionary
+        if not hasattr(self, '_configuration'):          
             self._configuration = {
                 "name": self.name,
                 "age": None,
@@ -172,8 +191,37 @@ class TinyPerson:
                 "currently_accessible_agents": [],  # [{"agent": agent_1, "relation": "My friend"}, {"agent": agent_2, "relation": "My colleague"}, ...]
             }
 
-        # register the agent in the global list of agents
-        TinyPerson.add_agent(self)
+        self._prompt_template_path = os.path.join(
+            os.path.dirname(__file__), "prompts/tinyperson.mustache"
+        )
+        self._init_system_message = None  # initialized later
+
+
+        ############################################################
+        # Special mechanisms used during deserialization
+        ############################################################
+
+        # rename agent to some specific name?
+        if kwargs.get("new_agent_name") is not None:
+            self._rename(kwargs.get("new_agent_name"))
+        
+        # If auto-rename, use the given name plus some new number ...
+        if kwargs.get("auto_rename") is True:
+            new_name = self.name # start with the current name
+            rename_succeeded = False
+            while not rename_succeeded:
+                try:
+                    self._rename(new_name)
+                    TinyPerson.add_agent(self)
+                    rename_succeeded = True                
+                except ValueError:
+                    new_id = utils.fresh_id()
+                    new_name = f"{self.name}_{new_id}"
+        
+        # ... otherwise, just register the agent
+        else:
+            # register the agent in the global list of agents
+            TinyPerson.add_agent(self)
 
         # start with a clean slate
         self.reset_prompt()
@@ -184,8 +232,13 @@ class TinyPerson:
             current_simulation().add_agent(self)
         else:
             self.simulation_id = None
+    
+    def _rename(self, new_name:str):    
+        self.name = new_name
+        self._configuration["name"] = self.name
 
-    def generate_agent_specification(self):
+
+    def generate_agent_prompt(self):
         with open(self._prompt_template_path, "r") as f:
             agent_prompt_template = f.read()
 
@@ -211,7 +264,7 @@ class TinyPerson:
     def reset_prompt(self):
 
         # render the template with the current configuration
-        self._init_system_message = self.generate_agent_specification()
+        self._init_system_message = self.generate_agent_prompt()
 
         # TODO actually, figure out another way to update agent state without "changing history"
 
@@ -347,7 +400,7 @@ class TinyPerson:
         until_done=True,
         n=None,
         return_actions=False,
-        max_content_length=default_max_content_display_length,
+        max_content_length=default["max_content_display_length"],
     ):
         """
         Acts in the environment and updates its internal cognitive state.
@@ -391,7 +444,7 @@ class TinyPerson:
                                         emotions=cognitive_state['emotions'])
             
             contents.append(content)          
-            if self.communication_display:
+            if TinyPerson.communication_display:
                 self._display_communication(role=role, content=content, kind='action', simplified=True, max_content_length=max_content_length)
             
             #
@@ -437,7 +490,7 @@ class TinyPerson:
         self,
         speech,
         source: AgentOrWorld = None,
-        max_content_length=default_max_content_display_length,
+        max_content_length=default["max_content_display_length"],
     ):
         """
         Listens to another agent (artificial or human) and updates its internal cognitive state.
@@ -456,47 +509,11 @@ class TinyPerson:
             max_content_length=max_content_length,
         )
 
-    # TODO obsolete?
-    @transactional
-    def respond_form(self, questions_csv_file_path, skip_first_row=True):
-        """
-        Reads a CSV file containing questions and updates the second column with responses generated by the `listen_and_act` method.
-
-        Args:
-            questions_csv_file_path (str): The path to the CSV file containing the questions.
-            skip_first_row (bool, optional): Whether to skip the first row of the CSV file. Defaults to True.
-
-        Returns:
-            None
-        """
-
-        logger.info(
-            f"[{self.name}] Responding to form in {questions_csv_file_path}"
-        )
-
-        dialect = None
-        with open(questions_csv_file_path, "r", encoding="utf-8") as file:
-            dialect = csv.Sniffer().sniff(file.read(1024))
-            file.seek(0)
-            reader = csv.reader(file, dialect)
-            rows = [row for row in reader]
-
-        # now, we can start responding to the questions
-        start_index = 1 if skip_first_row else 0
-        for i in range(start_index, len(rows)):
-            logger.info(f"[{self.name}] Responding to question: {rows[i][0]}")
-            rows[i][1] = self.listen_and_act(rows[i][0])
-            logger.info(f"[{self.name}] Response: {rows[i][1]}")
-
-        with open(questions_csv_file_path, "w", newline="", encoding="utf-8") as file:
-            writer = csv.writer(file, dialect)
-            writer.writerows(rows)
-
     def socialize(
         self,
         social_description: str,
         source: AgentOrWorld = None,
-        max_content_length=default_max_content_display_length,
+        max_content_length=default["max_content_display_length"],
     ):
         """
         Perceives a social stimulus through a description and updates its internal cognitive state.
@@ -518,7 +535,7 @@ class TinyPerson:
         self,
         visual_description,
         source: AgentOrWorld = None,
-        max_content_length=default_max_content_display_length,
+        max_content_length=default["max_content_display_length"],
     ):
         """
         Perceives a visual stimulus through a description and updates its internal cognitive state.
@@ -536,7 +553,7 @@ class TinyPerson:
             max_content_length=max_content_length,
         )
 
-    def think(self, thought, max_content_length=default_max_content_display_length):
+    def think(self, thought, max_content_length=default["max_content_display_length"]):
         """
         Forces the agent to think about something and updates its internal cognitive state.
 
@@ -551,7 +568,7 @@ class TinyPerson:
         )
 
     def internalize_goal(
-        self, goal, max_content_length=default_max_content_display_length
+        self, goal, max_content_length=default["max_content_display_length"]
     ):
         """
         Internalizes a goal and updates its internal cognitive state.
@@ -566,7 +583,7 @@ class TinyPerson:
         )
 
     @transactional
-    def _observe(self, stimulus, max_content_length=default_max_content_display_length):
+    def _observe(self, stimulus, max_content_length=default["max_content_display_length"]):
         stimuli = [stimulus]
 
         content = {"stimuli": stimuli}
@@ -578,7 +595,7 @@ class TinyPerson:
 
         self.episodic_memory.store({'role': 'user', 'content': content, 'simulation_timestamp': self.iso_datetime()})
 
-        if self.communication_display:
+        if TinyPerson.communication_display:
             self._display_communication(
                 role="user",
                 content=content,
@@ -594,7 +611,7 @@ class TinyPerson:
         self,
         speech,
         return_actions=False,
-        max_content_length=default_max_content_display_length,
+        max_content_length=default["max_content_display_length"],
     ):
         """
         Convenience method that combines the `listen` and `act` methods.
@@ -610,7 +627,7 @@ class TinyPerson:
         self,
         visual_description,
         return_actions=False,
-        max_content_length=default_max_content_display_length,
+        max_content_length=default["max_content_display_length"],
     ):
         """
         Convenience method that combines the `see` and `act` methods.
@@ -626,7 +643,7 @@ class TinyPerson:
         self,
         thought,
         return_actions=False,
-        max_content_length=default_max_content_display_length,
+        max_content_length=default["max_content_display_length"],
     ):
         """
         Convenience method that combines the `think` and `act` methods.
@@ -774,7 +791,7 @@ class TinyPerson:
         content,
         kind,
         simplified=True,
-        max_content_length=default_max_content_display_length,
+        max_content_length=default["max_content_display_length"],
     ):
         """
         Displays the current communication and stores it in a buffer for later use.
@@ -884,7 +901,7 @@ class TinyPerson:
         self,
         simplified=True,
         skip_system=True,
-        max_content_length=default_max_content_display_length,
+        max_content_length=default["max_content_display_length"],
     ):
         """
         Pretty prints the current messages.
@@ -897,12 +914,12 @@ class TinyPerson:
             )
         )
 
-    def pretty_current_interactions(self, simplified=True, skip_system=True, max_content_length=default_max_content_display_length):
+    def pretty_current_interactions(self, simplified=True, skip_system=True, max_content_length=default["max_content_display_length"], first_n=None, last_n=None, include_omission_info:bool=True):
       """
       Returns a pretty, readable, string with the current messages.
       """
       lines = []
-      for message in self.episodic_memory.retrieve_all():
+      for message in self.episodic_memory.retrieve(first_n=first_n, last_n=last_n, include_omission_info=include_omission_info):
         try:
             if not (skip_system and message['role'] == 'system'):
                 msg_simplified_type = ""
@@ -952,7 +969,7 @@ class TinyPerson:
         role,
         content,
         simplified=True,
-        max_content_length=default_max_content_display_length,
+        max_content_length=default["max_content_display_length"],
     ) -> list:
         """
         Pretty prints stimuli.
@@ -1004,7 +1021,7 @@ class TinyPerson:
         role,
         content,
         simplified=True,
-        max_content_length=default_max_content_display_length,
+        max_content_length=default["max_content_display_length"],
     ) -> str:
         """
         Pretty prints an action.
@@ -1066,39 +1083,55 @@ class TinyPerson:
     # IO
     ###########################################################
 
-    def save_spec(self, path, include_memory=False):
+    def save_spec(self, path, include_mental_faculties=True, include_memory=False):
         """
         Saves the current configuration to a JSON file.
         """
-        spec = {"tinyperson": self._configuration}
+        
+        suppress_attributes = []
 
         # should we include the memory?
-        if include_memory:
-            spec["memory"] = self.episodic_memory.to_json()
+        if not include_memory:
+            suppress_attributes.append("episodic_memory")
+            suppress_attributes.append("semantic_memory")
 
-        with open(path, "w") as f:
-            json.dump(self._configuration, f, indent=4, sort_keys=True)
+        # should we include the mental faculties?
+        if not include_mental_faculties:
+            suppress_attributes.append("_mental_faculties")
 
-    def _load_spec(self, path):
+        self.to_json(suppress=suppress_attributes, file_path=path)
+
+    
+    @staticmethod
+    def load_spec(path, suppress_mental_faculties=False, suppress_memory=False, auto_rename_agent=False, new_agent_name=None):
         """
-        Loads a JSON file into the current configuration.
+        Loads a JSON agent specification.
+
+        Args:
+            path (str): The path to the JSON file containing the agent specification.
+            suppress_mental_faculties (bool, optional): Whether to suppress loading the mental faculties. Defaults to False.
+            suppress_memory (bool, optional): Whether to suppress loading the memory. Defaults to False.
         """
-        with open(path, "r") as f:
-            spec = json.load(f)
-            self._configuration = spec["tinyperson"]
 
-            # some configurations are reflected in the TinyPerson's attributes
-            self.name = self._configuration["name"]
+        suppress_attributes = []
 
-            # should we also load the memory?
-            if "memory" in spec:
-                self.episodic_memory.from_json(spec["memory"])
-        
-        self.reset_prompt()
+        # should we suppress the mental faculties?
+        if suppress_mental_faculties:
+            suppress_attributes.append("_mental_faculties")
+
+        # should we suppress the memory?
+        if suppress_memory:
+            suppress_attributes.append("episodic_memory")
+            suppress_attributes.append("semantic_memory")
+
+        return TinyPerson.from_json(json_dict_or_path=path, suppress=suppress_attributes, 
+                                    post_init_params={"auto_rename_agent": auto_rename_agent, "new_agent_name": new_agent_name})
+
 
     def encode_complete_state(self) -> dict:
         """
-        Encodes the complete state of the TinyPerson, including the current messages.
+        Encodes the complete state of the TinyPerson, including the current messages, accessible agents, etc.
+        This is meant for serialization and caching purposes, not for exporting the state to the user.
         """
         to_copy = copy.copy(self.__dict__)
 
@@ -1202,233 +1235,7 @@ class TinyPerson:
         """
         Clears the global list of agents.
         """
-        TinyPerson.all_agents = {}
-
-
-#######################################################################################################################
-# Memory mechanisms 
-#######################################################################################################################
-
-class EpisodicMemory:
-    """
-    Provides episodic memory capabilities to an agent. Cognitively, episodic memory is the ability to remember specific events,
-    or episodes, in the past. This class provides a simple implementation of episodic memory, where the agent can store and retrieve
-    messages from memory.
-    
-    Subclasses of this class can be used to provide different memory implementations.
-    """
-
-    def __init__(
-        self, fixed_prefix_length: int = 100, lookback_length: int = 100
-    ) -> None:
-        """
-        Initializes the memory.
-
-        Args:
-            fixed_prefix_length (int): The fixed prefix length. Defaults to 20.
-            lookback_length (int): The lookback length. Defaults to 20.
-        """
-        self.fixed_prefix_length = fixed_prefix_length
-        self.lookback_length = lookback_length
-
-        self.memory = []
-
-    def store(self, value: Any) -> None:
-        """
-        Stores a value in memory.
-        """
-        self.memory.append(value)
-
-    def count(self) -> int:
-        """
-        Returns the number of values in memory.
-        """
-        return len(self.memory)
-
-    def retrieve_recent(self) -> list:
-        """
-        Retrieves the n most recent values from memory.
-        """
-        # compute fixed prefix
-        fixed_prefix = self.memory[: self.fixed_prefix_length]
-
-        # how many lookback values remain?
-        remaining_lookback = min(
-            len(self.memory) - len(fixed_prefix), self.lookback_length
-        )
-
-        # compute the remaining lookback values and return the concatenation
-        if remaining_lookback <= 0:
-            return fixed_prefix
-        else:
-            return fixed_prefix + self.memory[-remaining_lookback:]
-
-    def retrieve_all(self) -> list:
-        """
-        Retrieves all values from memory.
-        """
-        return copy.copy(self.memory)
-
-    def retrieve_relevant(self, relevance_target: str) -> list:
-        """
-        Retrieves all values from memory that are relevant to a given target.
-        """
-        # TODO
-        raise NotImplementedError("Subclasses must implement this method.")
-
-    def retrieve_first(self, n: int) -> list:
-        """
-        Retrieves the first n values from memory.
-        """
-        return self.memory[:n]
-
-    ###########################################################
-    # IO
-    ###########################################################
-
-    def to_json(self) -> dict:
-        """
-        Returns a JSON representation of the memory.
-        """
-        return self.__dict__
-
-    @staticmethod
-    def from_json(json_dict: dict) -> Self:
-        """
-        Loads a JSON representation of the memory.
-        """
-        new_memory = EpisodicMemory()
-        new_memory.__dict__ = json_dict
-
-        return new_memory
-
-class SemanticMemory:
-    """
-    Semantic memory is the memory of meanings, understandings, and other concept-based knowledge unrelated to specific experiences.
-    It is not ordered temporally, and it is not about remembering specific events or episodes. This class provides a simple implementation
-    of semantic memory, where the agent can store and retrieve semantic information.
-    """
-
-    def __init__(self, documents_paths: list=None, web_urls: list=None) -> None:
-        self.index = None
-        
-        self.documents_paths = []
-        self.documents_web_urls = []
-
-        self.documents = []
-        self.filename_to_document = {}
-
-        # load document paths and web urls
-        if documents_paths is not None:
-            for documents_path in documents_paths:
-                self.add_documents_path(documents_path)
-        
-        if web_urls is not None:
-            self.add_web_urls(web_urls)
-    
-    def retrieve_relevant(self, relevance_target:str, top_k=5) -> list:
-        """
-        Retrieves all values from memory that are relevant to a given target.
-        """
-        if self.index is not None:
-            retriever = self.index.as_retriever(similarity_top_k=top_k)
-            nodes = retriever.retrieve("Microsoft's recent major investments")
-        else:
-            nodes = []
-
-        retrieved = []
-        for node in nodes:
-            content = "SOURCE: " + node.metadata['file_name']
-            content += "\n" + "SIMILARITY SCORE:" + str(node.score)
-            content += "\n" + "RELEVANT CONTENT:" + node.text
-            retrieved.append(content)
-        
-        return retrieved
-    
-    def retrieve_document_content_by_name(self, document_name:str) -> str:
-        """
-        Retrieves a document by its name.
-        """
-        if self.filename_to_document is not None:
-            doc = self.filename_to_document[document_name]
-            if doc is not None:
-                content = "SOURCE: " + document_name
-                content += "\n" + "CONTENT: " + doc.text[:10000] # TODO a more intelligent way to limit the content
-                return content
-            else:
-                return None
-        else:
-            return None
-    
-    def list_documents_names(self) -> list:
-        """
-        Lists the names of the documents in memory.
-        """
-        if self.filename_to_document is not None:
-            return list(self.filename_to_document.keys())
-        else:
-            return []
-    
-    def add_documents_path(self, documents_path:str) -> None:
-        """
-        Adds a path to a folder with documents used for semantic memory.
-        """
-        if documents_path not in self.documents_paths:
-            self.documents_paths.append(documents_path)
-            new_documents = SimpleDirectoryReader(documents_path).load_data()
-            self._add_documents(new_documents, lambda doc: doc.metadata["file_name"])
-    
-    def add_web_urls(self, web_urls:list) -> None:
-        """ 
-        Adds the data retrieved from the specified URLs to documents used for semantic memory.
-        """
-        filtered_web_urls = [url for url in web_urls if url not in self.documents_web_urls]
-        self.documents_web_urls += filtered_web_urls
-
-        if len(filtered_web_urls) > 0:
-            new_documents = SimpleWebPageReader(html_to_text=True).load_data(filtered_web_urls)
-            self._add_documents(new_documents, lambda doc: doc.id_)
-
-    def _add_documents(self, new_documents, doc_to_name_func) -> list:
-        """
-        Adds documents to the semantic memory.
-        """
-        # index documents by name
-        if len(new_documents) > 0:
-            # add the new documents to the list of documents
-            self.documents += new_documents
-
-            # process documents individually too
-            for document in new_documents:
-                name = doc_to_name_func(document)
-                self.filename_to_document[name] = document
-
-            # index documents for semantic retrieval
-            if self.index is None:
-                self.index = VectorStoreIndex.from_documents(self.documents)
-            else:
-                self.index.refresh(self.documents)
-
-
-
-    ###########################################################
-    # IO
-    ###########################################################
-
-    def to_json(self) -> dict:
-        """
-        Returns a JSON representation of the memory.
-        """
-        return {"documents_paths": self.documents_paths, "documents_web_urls": self.documents_web_urls}
-    
-    @staticmethod
-    def from_json(json_dict:dict) -> Self:
-        """
-        Loads a JSON representation of the memory.
-        """
-        new_memory = SemanticMemory(documents_paths=json_dict["documents_paths"], web_urls=json_dict["documents_web_urls"])
-
-        return new_memory
+        TinyPerson.all_agents = {}        
 
 
 
@@ -1436,7 +1243,7 @@ class SemanticMemory:
 # Mental faculties
 #######################################################################################################################
     
-class Faculty:
+class Faculty(JsonSerializableRegistry):
     """
     Represents an optional mental faculty of an agent. Mental faculties are the cognitive abilities that an agent has.
     """
@@ -1488,23 +1295,6 @@ class Faculty:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    ###########################################################
-    # IO
-    ###########################################################
-
-    def to_json(self) -> dict:
-        """
-        Returns a JSON representation of the object.
-        """
-        return self.__dict__
-
-    def from_json(self, json_dict: dict):
-        """
-        Loads a JSON representation of the object.
-        """
-        self.__dict__ = copy.deepcopy(json_dict)
-
-        return self	
 
 class RecallFaculty(Faculty):
 
@@ -1695,40 +1485,309 @@ class ToolUse(Faculty):
             prompt += tool.actions_constraints_prompt()
         
         return prompt
+
+
+#######################################################################################################################
+# Memory mechanisms 
+#######################################################################################################################
+
+class Memory(Faculty):
+    """
+    Base class for different types of memory.
+    """
+
+    def store(self, value: Any) -> None:
+        """
+        Stores a value in memory.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def retrieve(self, first_n: int, last_n: int, include_omission_info:bool=True) -> list:
+        """
+        Retrieves the first n and/or last n values from memory. If n is None, all values are retrieved.
+
+        Args:
+            first_n (int): The number of first values to retrieve.
+            last_n (int): The number of last values to retrieve.
+            include_omission_info (bool): Whether to include an information message when some values are omitted.
+
+        Returns:
+            list: The retrieved values.
+        
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def retrieve_recent(self) -> list:
+        """
+        Retrieves the n most recent values from memory.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def retrieve_all(self) -> list:
+        """
+        Retrieves all values from memory.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def retrieve_relevant(self, relevance_target:str, top_k=5) -> list:
+        """
+        Retrieves all values from memory that are relevant to a given target.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+
+
+class EpisodicMemory(Memory):
+    """
+    Provides episodic memory capabilities to an agent. Cognitively, episodic memory is the ability to remember specific events,
+    or episodes, in the past. This class provides a simple implementation of episodic memory, where the agent can store and retrieve
+    messages from memory.
     
+    Subclasses of this class can be used to provide different memory implementations.
+    """
+
+    MEMORY_BLOCK_OMISSION_INFO = {'role': 'assistant', 'content': "Info: there were other messages here, but they were omitted for brevity.", 'simulation_timestamp': None}
+
+    def __init__(
+        self, fixed_prefix_length: int = 100, lookback_length: int = 100
+    ) -> None:
+        """
+        Initializes the memory.
+
+        Args:
+            fixed_prefix_length (int): The fixed prefix length. Defaults to 20.
+            lookback_length (int): The lookback length. Defaults to 20.
+        """
+        self.fixed_prefix_length = fixed_prefix_length
+        self.lookback_length = lookback_length
+
+        self.memory = []
+
+    def store(self, value: Any) -> None:
+        """
+        Stores a value in memory.
+        """
+        self.memory.append(value)
+
+    def count(self) -> int:
+        """
+        Returns the number of values in memory.
+        """
+        return len(self.memory)
+
+    def retrieve(self, first_n: int, last_n: int, include_omission_info:bool=True) -> list:
+        """
+        Retrieves the first n and/or last n values from memory. If n is None, all values are retrieved.
+
+        Args:
+            first_n (int): The number of first values to retrieve.
+            last_n (int): The number of last values to retrieve.
+            include_omission_info (bool): Whether to include an information message when some values are omitted.
+
+        Returns:
+            list: The retrieved values.
+        
+        """
+
+        omisssion_info = [EpisodicMemory.MEMORY_BLOCK_OMISSION_INFO] if include_omission_info else []
+
+        # use the other methods in the class to implement
+        if first_n is not None and last_n is not None:
+            return self.retrieve_first(first_n) + omisssion_info + self.retrieve_last(last_n)
+        elif first_n is not None:
+            return self.retrieve_first(first_n)
+        elif last_n is not None:
+            return self.retrieve_last(last_n)
+        else:
+            return self.retrieve_all()
+
+    def retrieve_recent(self, include_omission_info:bool=True) -> list:
+        """
+        Retrieves the n most recent values from memory.
+        """
+        omisssion_info = [EpisodicMemory.MEMORY_BLOCK_OMISSION_INFO] if include_omission_info else []
+
+        # compute fixed prefix
+        fixed_prefix = self.memory[: self.fixed_prefix_length] + omisssion_info
+
+        # how many lookback values remain?
+        remaining_lookback = min(
+            len(self.memory) - len(fixed_prefix), self.lookback_length
+        )
+
+        # compute the remaining lookback values and return the concatenation
+        if remaining_lookback <= 0:
+            return fixed_prefix
+        else:
+            return fixed_prefix + self.memory[-remaining_lookback:]
+
+    def retrieve_all(self) -> list:
+        """
+        Retrieves all values from memory.
+        """
+        return copy.copy(self.memory)
+
+    def retrieve_relevant(self, relevance_target: str) -> list:
+        """
+        Retrieves all values from memory that are relevant to a given target.
+        """
+        # TODO
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def retrieve_first(self, n: int, include_omission_info:bool=True) -> list:
+        """
+        Retrieves the first n values from memory.
+        """
+        omisssion_info = [EpisodicMemory.MEMORY_BLOCK_OMISSION_INFO] if include_omission_info else []
+        
+        return self.memory[:n] + omisssion_info
+    
+    def retrieve_last(self, n: int, include_omission_info:bool=True) -> list:
+        """
+        Retrieves the last n values from memory.
+        """
+        omisssion_info = [EpisodicMemory.MEMORY_BLOCK_OMISSION_INFO] if include_omission_info else []
+
+        return omisssion_info + self.memory[-n:]
+
+
+class SemanticMemory(Memory):
+    """
+    Semantic memory is the memory of meanings, understandings, and other concept-based knowledge unrelated to specific experiences.
+    It is not ordered temporally, and it is not about remembering specific events or episodes. This class provides a simple implementation
+    of semantic memory, where the agent can store and retrieve semantic information.
+    """
+
+    suppress_attributes_from_serialization = ["index"]
+
+    def __init__(self, documents_paths: list=None, web_urls: list=None) -> None:
+        self.index = None
+        
+        self.documents_paths = []
+        self.documents_web_urls = []
+
+        self.documents = []
+        self.filename_to_document = {}
+
+        # load document paths and web urls
+        self.add_documents_paths(documents_paths)
+        
+        if web_urls is not None:
+            self.add_web_urls(web_urls)
+    
+    def retrieve_relevant(self, relevance_target:str, top_k=5) -> list:
+        """
+        Retrieves all values from memory that are relevant to a given target.
+        """
+        if self.index is not None:
+            retriever = self.index.as_retriever(similarity_top_k=top_k)
+            nodes = retriever.retrieve("Microsoft's recent major investments")
+        else:
+            nodes = []
+
+        retrieved = []
+        for node in nodes:
+            content = "SOURCE: " + node.metadata['file_name']
+            content += "\n" + "SIMILARITY SCORE:" + str(node.score)
+            content += "\n" + "RELEVANT CONTENT:" + node.text
+            retrieved.append(content)
+        
+        return retrieved
+    
+    def retrieve_document_content_by_name(self, document_name:str) -> str:
+        """
+        Retrieves a document by its name.
+        """
+        if self.filename_to_document is not None:
+            doc = self.filename_to_document[document_name]
+            if doc is not None:
+                content = "SOURCE: " + document_name
+                content += "\n" + "CONTENT: " + doc.text[:10000] # TODO a more intelligent way to limit the content
+                return content
+            else:
+                return None
+        else:
+            return None
+    
+    def list_documents_names(self) -> list:
+        """
+        Lists the names of the documents in memory.
+        """
+        if self.filename_to_document is not None:
+            return list(self.filename_to_document.keys())
+        else:
+            return []
+    
+    def add_documents_paths(self, documents_paths:list) -> None:
+        """
+        Adds a path to a folder with documents used for semantic memory.
+        """
+
+        if documents_paths is not None:
+            for documents_path in documents_paths:
+                self.add_documents_path(documents_path)
+
+    def add_documents_path(self, documents_path:str) -> None:
+        """
+        Adds a path to a folder with documents used for semantic memory.
+        """
+
+        if documents_path not in self.documents_paths:
+            self.documents_paths.append(documents_path)
+            new_documents = SimpleDirectoryReader(documents_path).load_data()
+            self._add_documents(new_documents, lambda doc: doc.metadata["file_name"])
+    
+    def add_web_urls(self, web_urls:list) -> None:
+        """ 
+        Adds the data retrieved from the specified URLs to documents used for semantic memory.
+        """
+        filtered_web_urls = [url for url in web_urls if url not in self.documents_web_urls]
+        self.documents_web_urls += filtered_web_urls
+
+        if len(filtered_web_urls) > 0:
+            new_documents = SimpleWebPageReader(html_to_text=True).load_data(filtered_web_urls)
+            self._add_documents(new_documents, lambda doc: doc.id_)
+    
+    def add_web_url(self, web_url:str) -> None:
+        """
+        Adds the data retrieved from the specified URL to documents used for semantic memory.
+        """
+        # we do it like this because the add_web_urls could run scrapes in parallel, so it is better
+        # to implement this one in terms of the other
+        self.add_web_urls([web_url])
+
+    def _add_documents(self, new_documents, doc_to_name_func) -> list:
+        """
+        Adds documents to the semantic memory.
+        """
+        # index documents by name
+        if len(new_documents) > 0:
+            # add the new documents to the list of documents
+            self.documents += new_documents
+
+            # process documents individually too
+            for document in new_documents:
+                
+                # out of an abundance of caution, we sanitize the text
+                document.text = utils.sanitize_raw_string(document.text)
+
+                name = doc_to_name_func(document)
+                self.filename_to_document[name] = document
+
+            # index documents for semantic retrieval
+            if self.index is None:
+                self.index = VectorStoreIndex.from_documents(self.documents)
+            else:
+                self.index.refresh(self.documents)
+
+
+
     ###########################################################
     # IO
     ###########################################################
 
-    def to_json(self) -> dict:
-        """
-        Returns a JSON representation of the object.
-        """
-        to_copy = copy.copy(self.__dict__)
-
-        # delete the logger and other attributes that cannot be serialized
-        del to_copy["tools"]
-
-        to_copy["tools"] = [tool.to_json() for tool in self.tools]
-
-        state = copy.deepcopy(to_copy)
-
-        return state
-
-    def from_json(self, json_dict: dict):
-        """
-        Loads a JSON representation of the object.
-        """
-        from tinytroupe.tools import TinyTool # avoid circular import
-
-        state = copy.deepcopy(json_dict)
-
-        for i, tool in enumerate(self.tools):
-            tool.from_json(state['tools'][i])
-        
-        del state["tools"]
-
-        self.__dict__.update(state)
-
-        return self
-
+    def _post_deserialization_init(self):
+        super()._post_deserialization_init()
+    
+        self.add_documents_paths(self.documents_paths)
+        self.add_web_urls(self.documents_web_urls)

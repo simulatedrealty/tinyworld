@@ -1,9 +1,13 @@
 #other
-.pickle
+*.pickle
 .llmapi.bin
 *.cache.*
+tests_cache.pickle
 *.local.*
 .VSCodeCounter/
+.vscode/
+
+test_exports/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

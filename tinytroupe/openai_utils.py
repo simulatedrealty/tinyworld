@@ -17,31 +17,33 @@ config = utils.read_config_file()
 ###########################################################################
 # Default parameter values
 ###########################################################################
+default = {}
+default["model"] = config["OpenAI"].get("MODEL", "gpt-4")
+default["max_tokens"] = int(config["OpenAI"].get("MAX_TOKENS", "1024"))
+default["temperature"] = float(config["OpenAI"].get("TEMPERATURE", "0.3"))
+default["top_p"] = int(config["OpenAI"].get("TOP_P", "0"))
+default["frequency_penalty"] = float(config["OpenAI"].get("FREQ_PENALTY", "0.0"))
+default["presence_penalty"] = float(
+    config["OpenAI"].get("PRESENCE_PENALTY", "0.0"))
+default["timeout"] = float(config["OpenAI"].get("TIMEOUT", "30.0"))
+default["max_attempts"] = float(config["OpenAI"].get("MAX_ATTEMPTS", "0.0"))
+default["waiting_time"] = float(config["OpenAI"].get("WAITING_TIME", "0.5"))
+default["exponential_backoff_factor"] = float(config["OpenAI"].get("EXPONENTIAL_BACKOFF_FACTOR", "5"))
 
-default_model = config["OpenAI"].get("TINYPERSON_MODEL", "gpt-4")
-default_max_tokens = int(config["OpenAI"].get("TINYPERSON_MAX_TOKENS", "1024"))
-default_temperature = float(config["OpenAI"].get("TINYPERSON_TEMPERATURE", "0.3"))
-default_top_p = int(config["OpenAI"].get("TINYPERSON_TOP_P", "0"))
-default_frequency_penalty = float(config["OpenAI"].get("TINYPERSON_FREQ_PENALTY", "0.0"))
-default_presence_penalty = float(
-    config["OpenAI"].get("TINYPERSON_PRESENCE_PENALTY", "0.0"))
-default_timeout = float(config["OpenAI"].get("TINYPERSON_TIMEOUT", "30.0"))
-default_max_attempts = float(config["OpenAI"].get("TINYPERSON_MAX_ATTEMPTS", "0.0"))
-default_waiting_time = float(config["OpenAI"].get("TINYPERSON_WAITING_TIME", "0.5"))
-default_exponential_backoff_factor = float(config["OpenAI"].get("TINYPERSON_EXPONENTIAL_BACKOFF_FACTOR", "5"))
+default["embedding_model"] = config["OpenAI"].get("EMBEDDING_MODEL", "text-embedding-3-small")
 
-default_cache_api_calls = config["OpenAI"].getboolean("TINYPERSON_CACHE_API_CALLS", False)
-default_cache_file_name = config["OpenAI"].get("TINYPERSON_CACHE_FILE_NAME", "openai_api_cache.pickle")
+default["cache_api_calls"] = config["OpenAI"].getboolean("CACHE_API_CALLS", False)
+default["cache_file_name"] = config["OpenAI"].get("CACHE_FILE_NAME", "openai_api_cache.pickle")
 
 ###########################################################################
 # Model calling helpers
 ###########################################################################
+
+# TODO under development
 class LLMCall:
     """
     A class that represents an LLM model call. It contains the input messages, the model configuration, and the model output.
     """
-
-    # TODO finish this class <--------------------------------------------------------------------------------------------------------------------------------------
     def __init__(self, system_template_name:str, user_template_name:str=None, **model_params):
         """
         Initializes an LLMCall instance with the specified system and user templates.
@@ -80,13 +82,13 @@ class OpenAIClient:
     A utility class for interacting with the OpenAI API.
     """
 
-    def __init__(self, cache_api_calls=default_cache_api_calls, cache_file_name=default_cache_file_name) -> None:
+    def __init__(self, cache_api_calls=default["cache_api_calls"], cache_file_name=default["cache_file_name"]) -> None:
         logger.debug("Initializing OpenAIClient")
 
         # should we cache api calls and reuse them?
         self.set_api_cache(cache_api_calls, cache_file_name)
     
-    def set_api_cache(self, cache_api_calls, cache_file_name=default_cache_file_name):
+    def set_api_cache(self, cache_api_calls, cache_file_name=default["cache_file_name"]):
         """
         Enables or disables the caching of API calls.
 
@@ -108,17 +110,17 @@ class OpenAIClient:
 
     def send_message(self,
                     current_messages,
-                     model=default_model,
-                     temperature=default_temperature,
-                     max_tokens=default_max_tokens,
-                     top_p=default_top_p,
-                     frequency_penalty=default_frequency_penalty,
-                     presence_penalty=default_presence_penalty,
-                     stop=None,
-                     timeout=default_timeout,
-                     max_attempts=default_max_attempts,
-                     waiting_time=default_waiting_time,
-                     exponential_backoff_factor=default_exponential_backoff_factor,
+                     model=default["model"],
+                     temperature=default["temperature"],
+                     max_tokens=default["max_tokens"],
+                     top_p=default["top_p"],
+                     frequency_penalty=default["frequency_penalty"],
+                     presence_penalty=default["presence_penalty"],
+                     stop=[],
+                     timeout=default["timeout"],
+                     max_attempts=default["max_attempts"],
+                     waiting_time=default["waiting_time"],
+                     exponential_backoff_factor=default["exponential_backoff_factor"],
                      n = 1,
                      echo=False):
         """
@@ -201,7 +203,7 @@ class OpenAIClient:
                 logger.debug(
                     f"Got response in {end_time - start_time:.2f} seconds after {i + 1} attempts.")
 
-                return self._raw_model_response_extractor(response)
+                return utils.sanitize_dict(self._raw_model_response_extractor(response))
 
             except InvalidRequestError as e:
                 logger.error(f"[{i}] Invalid request error, won't retry: {e}")
@@ -223,7 +225,7 @@ class OpenAIClient:
                 aux_exponential_backoff()
             
             except NonTerminalError as e:
-                logger.error(f"[{i}] Error: {e}")
+                logger.error(f"[{i}] Non-terminal error: {e}")
                 aux_exponential_backoff()
                 
             except Exception as e:
@@ -248,7 +250,7 @@ class OpenAIClient:
         Extracts the response from the API response. Subclasses should
         override this method to implement their own response extraction.
         """
-        return dict(response.choices[0].message)
+        return response.choices[0].message.to_dict()
 
     def _count_tokens(self, messages: list, model: str):
         """
@@ -261,42 +263,47 @@ class OpenAIClient:
         model (str): The name of the model to use for encoding the string.
         """
         try:
-            encoding = tiktoken.encoding_for_model(model)
-        except KeyError:
-            logger.debug("Token count: model not found. Using cl100k_base encoding.")
-            encoding = tiktoken.get_encoding("cl100k_base")
-        if model in {
-            "gpt-3.5-turbo-0613",
-            "gpt-3.5-turbo-16k-0613",
-            "gpt-4-0314",
-            "gpt-4-32k-0314",
-            "gpt-4-0613",
-            "gpt-4-32k-0613",
-            }:
-            tokens_per_message = 3
-            tokens_per_name = 1
-        elif model == "gpt-3.5-turbo-0301":
-            tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
-            tokens_per_name = -1  # if there's a name, the role is omitted
-        elif "gpt-3.5-turbo" in model:
-            logger.debug("Token count: gpt-3.5-turbo may update over time. Returning num tokens assuming gpt-3.5-turbo-0613.")
-            return self._count_tokens(messages, model="gpt-3.5-turbo-0613")
-        elif ("gpt-4" in model) or ("ppo" in model):
-            logger.debug("Token count: gpt-4 may update over time. Returning num tokens assuming gpt-4-0613.")
-            return self._count_tokens(messages, model="gpt-4-0613")
-        else:
-            raise NotImplementedError(
-                f"""num_tokens_from_messages() is not implemented for model {model}. See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens."""
-            )
-        num_tokens = 0
-        for message in messages:
-            num_tokens += tokens_per_message
-            for key, value in message.items():
-                num_tokens += len(encoding.encode(value))
-                if key == "name":
-                    num_tokens += tokens_per_name
-        num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
-        return num_tokens
+            try:
+                encoding = tiktoken.encoding_for_model(model)
+            except KeyError:
+                logger.debug("Token count: model not found. Using cl100k_base encoding.")
+                encoding = tiktoken.get_encoding("cl100k_base")
+            if model in {
+                "gpt-3.5-turbo-0613",
+                "gpt-3.5-turbo-16k-0613",
+                "gpt-4-0314",
+                "gpt-4-32k-0314",
+                "gpt-4-0613",
+                "gpt-4-32k-0613",
+                }:
+                tokens_per_message = 3
+                tokens_per_name = 1
+            elif model == "gpt-3.5-turbo-0301":
+                tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
+                tokens_per_name = -1  # if there's a name, the role is omitted
+            elif "gpt-3.5-turbo" in model:
+                logger.debug("Token count: gpt-3.5-turbo may update over time. Returning num tokens assuming gpt-3.5-turbo-0613.")
+                return self._count_tokens(messages, model="gpt-3.5-turbo-0613")
+            elif ("gpt-4" in model) or ("ppo" in model):
+                logger.debug("Token count: gpt-4 may update over time. Returning num tokens assuming gpt-4-0613.")
+                return self._count_tokens(messages, model="gpt-4-0613")
+            else:
+                raise NotImplementedError(
+                    f"""num_tokens_from_messages() is not implemented for model {model}. See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens."""
+                )
+            num_tokens = 0
+            for message in messages:
+                num_tokens += tokens_per_message
+                for key, value in message.items():
+                    num_tokens += len(encoding.encode(value))
+                    if key == "name":
+                        num_tokens += tokens_per_name
+            num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
+            return num_tokens
+        
+        except Exception as e:
+            logger.error(f"Error counting tokens: {e}")
+            return None
 
     def _save_cache(self):
         """
@@ -308,17 +315,50 @@ class OpenAIClient:
 
     
     def _load_cache(self):
+
         """
         Loads the API cache from disk.
         """
         # unpickle
         return pickle.load(open(self.cache_file_name, "rb")) if os.path.exists(self.cache_file_name) else {}
 
+    def get_embedding(self, text, model=default["embedding_model"]):
+        """
+        Gets the embedding of the given text using the specified model.
+
+        Args:
+        text (str): The text to embed.
+        model (str): The name of the model to use for embedding the text.
+
+        Returns:
+        The embedding of the text.
+        """
+        response = self._raw_embedding_model_call(text, model)
+        return self._raw_embedding_model_response_extractor(response)
+    
+    def _raw_embedding_model_call(self, text, model):
+        """
+        Calls the OpenAI API to get the embedding of the given text. Subclasses should
+        override this method to implement their own API calls.
+        """
+        return self.client.embeddings.create(
+            input=[text],
+            model=model
+        )
+    
+    def _raw_embedding_model_response_extractor(self, response):
+        """
+        Extracts the embedding from the API response. Subclasses should
+        override this method to implement their own response extraction.
+        """
+        return response.data[0].embedding
 
 class AzureClient(OpenAIClient):
 
-    def __init__(self) -> None:
+    def __init__(self, cache_api_calls=default["cache_api_calls"], cache_file_name=default["cache_file_name"]) -> None:
         logger.debug("Initializing AzureClient")
+
+        super().__init__(cache_api_calls, cache_file_name)
     
     def _setup_from_config(self):
         """
@@ -333,12 +373,9 @@ class AzureClient(OpenAIClient):
         """
         Calls the Azue OpenAI Service API with the given parameters.
         """
-        # Looks like Azue OpenAI Service API uses this parameter name,
-        # which is different from what the OpenAI API uses ("model")
-        # No idea why, but let's adapt it here.
-        chat_api_params["engine"] = model 
+        chat_api_params["model"] = model 
 
-        return openai.ChatCompletion.create(
+        return self.client.chat.completions.create(
                     **chat_api_params
                 )
 
@@ -402,6 +439,9 @@ def client():
     logger.debug(f"Using  API type {api_type}.")
     return _get_client_for_api_type(api_type)
 
+
+# TODO simplify the custom configuration methods below
+
 def force_api_type(api_type):
     """
     Forces the use of the given API type, thus overriding any other configuration.
@@ -412,7 +452,7 @@ def force_api_type(api_type):
     global _api_type_override
     _api_type_override = api_type
 
-def force_api_cache(cache_api_calls, cache_file_name=default_cache_file_name):
+def force_api_cache(cache_api_calls, cache_file_name=default["cache_file_name"]):
     """
     Forces the use of the given API cache configuration, thus overriding any other configuration.
 
@@ -423,6 +463,22 @@ def force_api_cache(cache_api_calls, cache_file_name=default_cache_file_name):
     # set the cache parameters on all clients
     for client in _api_type_to_client.values():
         client.set_api_cache(cache_api_calls, cache_file_name)
+
+def force_default_value(key, value):
+    """
+    Forces the use of the given default configuration value for the specified key, thus overriding any other configuration.
+
+    Args:
+    key (str): The key to override.
+    value: The value to use for the key.
+    """
+    global default
+
+    # check if the key actually exists
+    if key in default:
+        default[key] = value
+    else:
+        raise ValueError(f"Key {key} is not a valid configuration key.")
 
 # default client
 register_client("openai", OpenAIClient())

@@ -9,7 +9,7 @@ from tinytroupe import config
 import tinytroupe.utils as utils
 
 
-default_max_content_display_length = config["OpenAI"].getint("TINYPERSON_MAX_CONTENT_DISPLAY_LENGTH", 1024)
+default_max_content_display_length = config["OpenAI"].getint("MAX_CONTENT_DISPLAY_LENGTH", 1024)
 
 
 class TinyPersonChecker:

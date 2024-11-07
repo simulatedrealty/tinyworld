@@ -14,7 +14,7 @@ from tinytroupe.environment import TinyWorld, TinySocialNetwork
 from tinytroupe.personfactory import TinyPersonFactory
 from tinytroupe.extraction import InteractionResultsExtractor
 
-from tinytroupe.examples import lisa, oscar, marcos
+from tinytroupe.examples import create_lisa_the_data_scientist, create_oscar_the_architect, create_marcos_the_physician
 from tinytroupe.extraction import default_extractor as extractor
 import tinytroupe.control as control
 from tinytroupe.control import Simulation
@@ -102,7 +102,7 @@ def test_ad_evaluation_scenario(setup):
 
     eval_request_msg = \
     f"""
-    Can you evaluate these Bing ads for me? Which one convices you more to buy their particular offering? Select **ONLY** one. Please explain your reasoning, based on your background and personality.
+    Can you please evaluate these Bing ads for me? Which one convices you more to buy their particular offering? Select **ONLY** one. Please explain your reasoning, based on your background and personality.
 
     # AD 1
     ```
@@ -132,7 +132,7 @@ def test_ad_evaluation_scenario(setup):
 
     extraction_objective="Find the ad the agent chose. Extract the Ad number (just put a number here, no text, e.g., 2), title and justification for the choice."
 
-    people = [oscar(), lisa()]
+    people = [create_oscar_the_architect(), create_lisa_the_data_scientist()]
 
     for person in people:
         person.change_context(situation)

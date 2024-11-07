@@ -23,6 +23,8 @@ logger = logging.getLogger("tinytroupe")
 from tinytroupe.agent import TinyPerson
 from tinytroupe.environment import TinyWorld
 from tinytroupe.personfactory import TinyPersonFactory
+from tinytroupe.utils import JsonSerializableRegistry
+
 
 from tinytroupe import openai_utils
 import tinytroupe.utils as utils
@@ -242,7 +244,7 @@ class InteractionResultsReducer:
         return pd.DataFrame(reduction, columns=column_names)
 
 
-class ArtifactExporter:
+class ArtifactExporter(JsonSerializableRegistry):
     """
     An artifact exporter is responsible for exporting artifacts from TinyTroupe elements, for example 
     in order to create synthetic data files from simulations. 
@@ -353,25 +355,7 @@ class ArtifactExporter:
     ###########################################################
     # IO
     ###########################################################
-
-    def to_json(self) -> dict:
-        """
-        Returns a JSON representation of the object.
-        """
-        return self.__dict__
-
-    @classmethod
-    def from_json(cls, json_dict: dict):
-        """
-        Loads a JSON representation of the object.
-        """
-        # instantiates the current class of the object, without specifying the exact class
-        new_obj = cls.__new__(cls)
-        new_obj.__dict__ = json_dict
-
-        return new_obj
-              
-    
+                  
     def _compose_filepath(self, artifact_data:Union[dict, str], artifact_name:str, content_type:str, target_format:str=None, verbose:bool=False):
         """
         Composes the file path for the artifact to export.

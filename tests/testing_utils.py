@@ -73,6 +73,7 @@ def terminates_with_action_type(actions, action_type):
     
     return actions[-1]["action"]["type"] == action_type
 
+
 def proposition_holds(proposition: str) -> bool:
     """
     Checks if the given proposition is true according to an LLM call.
@@ -110,6 +111,35 @@ def only_alphanumeric(string: str):
     """
     return ''.join(c for c in string if c.isalnum())
 
+def create_test_system_user_message(user_prompt, system_prompt="You are a helpful AI assistant."):
+    """
+    Creates a list containing one system message and one user message. 
+    """
+    
+    messages = [{"role": "system", "content": system_prompt}]
+    
+    if user_prompt is not None:
+        messages.append({"role": "user", "content": user_prompt})
+    
+    return messages
+
+def agents_configs_are_equal(agent1, agent2, ignore_name=False):
+    """
+    Checks if the configurations of two agents are equal.
+    """
+
+    ignore_keys = []
+    if ignore_name:
+        ignore_keys.append("name")
+    
+    for key in agent1._configuration.keys():
+        if key in ignore_keys:
+            continue
+        
+        if agent1._configuration[key] != agent2._configuration[key]:
+            return False
+    
+    return True
 ############################################################################################################
 # I/O utilities
 ############################################################################################################
@@ -122,6 +152,13 @@ def remove_file_if_exists(file_path):
     if os.path.exists(file_path):
         os.remove(file_path)
 
+def get_relative_to_test_path(path_suffix):
+    """
+    Returns the path to the test file with the given suffix.
+    """
+    
+    return os.path.join(os.path.dirname(__file__), path_suffix)
+
 
 ############################################################################################################
 # Fixtures
@@ -131,7 +168,7 @@ def remove_file_if_exists(file_path):
 def focus_group_world():
     import tinytroupe.examples as examples   
     
-    world = TinyWorld("Focus group", [examples.lisa(), examples.oscar(), examples.marcos()])
+    world = TinyWorld("Focus group", [examples.create_lisa_the_data_scientist(), examples.create_oscar_the_architect(), examples.create_marcos_the_physician()])
     return world
 
 @pytest.fixture(scope="function")

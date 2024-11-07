@@ -26,10 +26,12 @@ class TinyWorld:
     # A dict of all environments created so far.
     all_environments = {} # name -> environment
 
+    # Whether to display environments communications or not, for all environments. 
+    communication_display = True
+
     def __init__(self, name: str="A TinyWorld", agents=[], 
                  initial_datetime=datetime.datetime.now(),
-                 broadcast_if_no_target=True,
-                 communication_display=True):
+                 broadcast_if_no_target=True):
         """
         Initializes an environment.
 
@@ -39,13 +41,11 @@ class TinyWorld:
             initial_datetime (datetime): The initial datetime of the environment, or None (i.e., explicit time is optional). 
                 Defaults to the current datetime in the real world.
             broadcast_if_no_target (bool): If True, broadcast actions if the target of an action is not found.
-            communication_display (bool): If True, displays environment information.
         """
 
         self.name = name
         self.current_datetime = initial_datetime
         self.broadcast_if_no_target = broadcast_if_no_target
-        self.communication_display = communication_display
         self.simulation_id = None # will be reset later if the agent is used within a specific simulation scope
         
         
@@ -62,22 +62,7 @@ class TinyWorld:
         TinyWorld.add_environment(self)
         
         self.add_agents(agents)
-    
-# TODO ??
-#    
-#   def __deepcopy__(self, memo):
-#       """
-#       Deep copy the environment.
-#       """
-#       w = TinyWorld(self.name, agents=self.agents, 
-#                broadcast_if_no_target=self.broadcast_if_no_target,
-#                communication_display=self.communication_display,
-#                simulation_id=self.simulation_id)
-#
-#       w._displayed_communications_buffer = copy.deepcopy(self._displayed_communications_buffer)
-#       
-#       return w
-    
+        
     #######################################################################
     # Simulation control methods
     #######################################################################
@@ -95,10 +80,15 @@ class TinyWorld:
         self._advance_datetime(timedelta_per_step)
 
         # agents can act
+        agents_actions = {}
         for agent in self.agents:
             logger.debug(f"[{self.name}] Agent {name_or_empty(agent)} is acting.")
-            agent.act()
+            actions = agent.act(return_actions=True)
+            agents_actions[agent.name] = actions
+
             self._handle_actions(agent, agent.pop_latest_actions())
+        
+        return agents_actions
 
     def _advance_datetime(self, timedelta):
         """
@@ -113,21 +103,31 @@ class TinyWorld:
             logger.info(f"[{self.name}] No timedelta provided, so the datetime was not advanced.")
 
     @transactional
-    def run(self, steps: int, timedelta_per_step=None):
+    def run(self, steps: int, timedelta_per_step=None, return_actions=False):
         """
         Runs the environment for a given number of steps.
 
         Args:
             steps (int): The number of steps to run the environment for.
             timedelta_per_step (timedelta, optional): The time interval between steps. Defaults to None.
+            return_actions (bool, optional): If True, returns the actions taken by the agents. Defaults to False.
+        
+        Returns:
+            list: A list of actions taken by the agents over time, if return_actions is True. The list has this format:
+                  [{agent_name: [action_1, action_2, ...]}, {agent_name_2: [action_1, action_2, ...]}, ...]
         """
+        agents_actions_over_time = []
         for i in range(steps):
             logger.info(f"[{self.name}] Running world simulation step {i+1} of {steps}.")
 
-            if self.communication_display:
+            if TinyWorld.communication_display:
                 self._display_communication(cur_step=i+1, total_steps=steps, kind='step', timedelta_per_step=timedelta_per_step)
 
-            self._step(timedelta_per_step=timedelta_per_step)
+            agents_actions = self._step(timedelta_per_step=timedelta_per_step)
+            agents_actions_over_time.append(agents_actions)
+        
+        if return_actions:
+            return agents_actions_over_time
     
     @transactional
     def skip(self, steps: int, timedelta_per_step=None):
@@ -542,7 +542,7 @@ class TinyWorld:
         """
         print(self.pretty_current_interactions(simplified=simplified, skip_system=skip_system))
 
-    def pretty_current_interactions(self, simplified=True, skip_system=True, max_content_length=default_max_content_display_length):
+    def pretty_current_interactions(self, simplified=True, skip_system=True, max_content_length=default["max_content_display_length"], first_n=None, last_n=None, include_omission_info:bool=True):
       """
       Returns a pretty, readable, string with the current messages of agents in this environment.
       """
@@ -551,8 +551,8 @@ class TinyWorld:
       for agent in self.agents:
           agent_content = f"#### Interactions from the point of view of {agent.name} agent:\n"
           agent_content += f"**BEGIN AGENT {agent.name} HISTORY.**\n "
-          agent_content += agent.pretty_current_interactions(simplified=simplified, skip_system=skip_system, max_content_length=max_content_length) + "\n"
-          agent_content += f"**FINISHED AGENT {agent.name} HISTORY.**\n "
+          agent_content += agent.pretty_current_interactions(simplified=simplified, skip_system=skip_system, max_content_length=max_content_length, first_n=first_n, last_n=last_n, include_omission_info=include_omission_info) + "\n"
+          agent_content += f"**FINISHED AGENT {agent.name} HISTORY.**\n\n"
           agent_contents.append(agent_content)      
           
       return "\n".join(agent_contents)

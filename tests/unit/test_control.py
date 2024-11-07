@@ -7,7 +7,7 @@ sys.path.append('../../')
 sys.path.append('..')
 
 
-from tinytroupe.examples import oscar, lisa
+from tinytroupe.examples import create_oscar_the_architect, create_lisa_the_data_scientist
 from tinytroupe.agent import TinyPerson, ToolUse
 from tinytroupe.environment import TinyWorld
 from tinytroupe.control import Simulation
@@ -43,12 +43,12 @@ def test_begin_checkpoint_end_with_agent_only(setup):
     enricher = Enricher()
     tooluse_faculty = ToolUse(tools=[TinyWordProcessor(exporter=exporter, enricher=enricher)])
 
-    agent_1 = oscar()
+    agent_1 = create_oscar_the_architect()
     agent_1.add_mental_faculties([tooluse_faculty])
     agent_1.define("age", 19)
     agent_1.define("nationality", "Brazilian")
 
-    agent_2 = lisa()
+    agent_2 = create_lisa_the_data_scientist()
     agent_2.add_mental_faculties([tooluse_faculty])
     agent_2.define("age", 80)
     agent_2.define("nationality", "Argentinian")
@@ -79,7 +79,7 @@ def test_begin_checkpoint_end_with_world(setup):
     control.begin("control_test_world.cache.json")
     assert control._current_simulations["default"].status == Simulation.STATUS_STARTED, "The simulation should be started at this point."
 
-    world = TinyWorld("Test World", [oscar(), lisa()])
+    world = TinyWorld("Test World", [create_oscar_the_architect(), create_lisa_the_data_scientist()])
 
     world.make_everyone_accessible()
 

@@ -7,7 +7,7 @@ sys.path.append('../../tinytroupe/')
 sys.path.append('../../')
 sys.path.append('..')
 
-from tinytroupe.examples import lisa, oscar, marcos
+from tinytroupe.examples import create_lisa_the_data_scientist, create_oscar_the_architect, create_marcos_the_physician
 from tinytroupe.environment import TinyWorld
 from testing_utils import *
 
@@ -24,7 +24,7 @@ def test_run(setup, focus_group_world):
 
     # check integrity of conversation
     for agent in world_2.agents:
-        for msg in agent.memory.retrieve_all():
+        for msg in agent.episodic_memory.retrieve_all():
             if 'action' in msg['content'] and 'target' in msg['content']['action']:
                 assert msg['content']['action']['target'] != agent.name, f"{agent.name} should not have any messages with itself as the target."
             
@@ -42,7 +42,7 @@ def test_broadcast(setup, focus_group_world):
     
     for agent in focus_group_world.agents:
         # did the agents receive the message?
-        assert "Folks, we need to brainstorm" in agent.memory.retrieve_first(1)[0]['content']['stimuli'][0]['content'], f"{agent.name} should have received the message."
+        assert "Folks, we need to brainstorm" in agent.episodic_memory.retrieve_first(1)[0]['content']['stimuli'][0]['content'], f"{agent.name} should have received the message."
 
 
 def test_encode_complete_state(setup, focus_group_world):

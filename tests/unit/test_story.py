@@ -13,14 +13,36 @@ from tinytroupe.agent import TinyPerson
 from tinytroupe.environment import TinyWorld, TinySocialNetwork
 from tinytroupe.personfactory import TinyPersonFactory
 from tinytroupe.extraction import InteractionResultsExtractor
-from tinytroupe.story import Story
+from tinytroupe.story import TinyStory
 
-from tinytroupe.examples import lisa, oscar, marcos
+from tinytroupe.examples import create_lisa_the_data_scientist, create_oscar_the_architect, create_marcos_the_physician
 from tinytroupe.extraction import default_extractor as extractor
 import tinytroupe.control as control
 from tinytroupe.control import Simulation
 
 from testing_utils import *
+
+def test_story_start(setup, focus_group_world):
+    world = focus_group_world
+
+    story = TinyStory(world)
+
+    start = story.start_story()
+
+    print("Story start: ", start)
+
+    assert proposition_holds(f"The following could plausibly be the start of a story involving people named either Lisa, Marcos or Oscar: '{start}'"), f"Proposition is false according to the LLM."
+
+def test_story_start_2(setup, focus_group_world):
+    world = focus_group_world
+
+    story = TinyStory(world)
+
+    start = story.start_story(requirements="Start a story which is extremely crazy and out of this world.")
+
+    print("Story start: ", start)
+
+    assert proposition_holds(f"The following could plausibly be the start of a very crazy story involving people named either Lisa, Marcos or Oscar: '{start}'"), f"Proposition is false according to the LLM."
 
 def test_story_continuation(setup, focus_group_world):
     world = focus_group_world
@@ -37,7 +59,7 @@ def test_story_continuation(setup, focus_group_world):
     
     world.run(2)
 
-    story = Story(world)
+    story = TinyStory(world)
 
     continuation = story.continue_story()
 

@@ -14,7 +14,7 @@ from tinytroupe.environment import TinyWorld, TinySocialNetwork
 from tinytroupe.personfactory import TinyPersonFactory
 from tinytroupe.extraction import InteractionResultsExtractor
 
-from tinytroupe.examples import lisa, oscar, marcos
+from tinytroupe.examples import create_lisa_the_data_scientist, create_oscar_the_architect, create_marcos_the_physician
 from tinytroupe.extraction import default_extractor as extractor
 import tinytroupe.control as control
 from tinytroupe.control import Simulation
@@ -34,7 +34,7 @@ def test_brainstorming_scenario(setup, focus_group_world):
     
     world.run(1)
 
-    agent = lisa()
+    agent = TinyPerson.get_agent_by_name("Lisa")
 
     agent.listen_and_act("Can you please summarize the ideas that the group came up with?")
 
@@ -48,4 +48,4 @@ def test_brainstorming_scenario(setup, focus_group_world):
 
     print(results)
 
-    assert proposition_holds(f"The following contains some ideas for new products: '{results}'"), f"Proposition is false according to the LLM."
+    assert proposition_holds(f"The following contains some ideas for new product features or entirely new products: '{results}'"), f"Proposition is false according to the LLM."

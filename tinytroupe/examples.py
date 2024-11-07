@@ -6,7 +6,7 @@ agents.
 from tinytroupe.agent import TinyPerson
 
 # Example 1: Oscar, the architect
-def oscar():
+def create_oscar_the_architect():
   oscar = TinyPerson("Oscar")
 
   oscar.define("age", 30)
@@ -67,7 +67,7 @@ def oscar():
   return oscar
 
 # Example 2: Lisa, the Data Scientist
-def lisa():
+def create_lisa_the_data_scientist():
   lisa = TinyPerson("Lisa")
 
   lisa.define("age", 28)
@@ -127,7 +127,7 @@ def lisa():
   return lisa
 
 # Example 3: Marcos, the physician
-def marcos():
+def create_marcos_the_physician():
 
   marcos = TinyPerson("Marcos")
 
@@ -212,7 +212,7 @@ def marcos():
 
 
 # Example 4: Lila, the Linguist
-def lila():
+def create_lila_the_linguist():
 
   lila = TinyPerson("Lila")
 

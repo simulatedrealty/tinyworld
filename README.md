@@ -1,21 +1,30 @@
 # TinyTroupe
-*LLM-based people simulation for design, validation and insight generation in business.*
+*LLM-powered multiagent persona simulation for imagination enhancement and insight generation.*
 
 <p align="center">
   <img src="./docs/tinytroupe_stage.png" alt="A tiny office with tiny people doing some tiny jobs.">
 </p>
 
 
-*TinyTroupe* is an experimental Python library that allows us to **simulate** people with specific personalities, interests, and goals. These artificial agents - `TinyPerson`s - can listen to us and one another, reply back, and go about their lives in simulated `TinyWorld` environments. This is achieved by leveraging the power of Language Models (LLMs), notably GPT-4, to generate realistic simulated behavior. This allow us to investigate a wide range of **realistic interactions** and **consumer types**, with **highly customizable personas**, under **conditions of our choosing**. The focus is thus on *understanding* human behavior and not on directly *supporting it* (like, say, AI assistants do) -- this results in, among other things, specialized mechanisms that make sense only in a simulation setting. Further, unlike other *game-like* LLM-based simulation approaches, TinyTroupe aims at enlightening productivity and business scenarios, thereby contributing to more successful projects and products. Here are some application ideas:
+*TinyTroupe* is an experimental Python library that allows the **simulation** of people with specific personalities, interests, and goals. These artificial agents - `TinyPerson`s - can listen to us and one another, reply back, and go about their lives in simulated `TinyWorld` environments. This is achieved by leveraging the power of Large Language Models (LLMs), notably GPT-4, to generate realistic simulated behavior. This allow us to investigate a wide range of **convincing interactions** and **consumer types**, with **highly customizable personas**, under **conditions of our choosing**. The focus is thus on *understanding* human behavior and not on directly *supporting it* (like, say, AI assistants do) -- this results in, among other things, specialized mechanisms that make sense only in a simulation setting. Further, unlike other *game-like* LLM-based simulation approaches, TinyTroupe aims at enlightening productivity and business scenarios, thereby contributing to more successful projects and products. Here are some application ideas to **enhance human imagination**:
 
-  - **Advertisement:** TinyTroupe can **evaluate Bing Ads** offline with a simulated audience before spending money on them!
+  - **Advertisement:** TinyTroupe can **evaluate digital ads (e.g., Bing Ads)** offline with a simulated audience before spending money on them!
   - **Software Testing:** TinyTroupe can **provide test input** to systems (e.g., search engines, chatbots or copilots) and then **evaluate the results**.
-  - **Training data:** TinyTroupe can generate realistic **synthetic data** that can be later used to train models or be subject to opportunity analyses.
+  - **Training and exploratory data:** TinyTroupe can generate realistic **synthetic data** that can be later used to train models or be subject to opportunity analyses.
   - **Product and project management:** TinyTroupe can **read project or product proposals** and **give feedback** from the perspective of **specific personas** (e.g., physicians, lawyers, and knowledge workers in general).
-  - **Brainstorming:** TinyTroupe can put in place of **focus groups** and deliver great product feedback at a fraction of the cost!
-  
+  - **Brainstorming:** TinyTroupe can simulate **focus groups** and deliver great product feedback at a fraction of the cost!
 
-**NOTE:** This is an ongoing experimental project, thus subject to frequent change.
+In all of the above, and many others, we hope users () can **gain insights** about their domain of interest, and thus make better decisions.
+
+We are releasing *TinyTroupe* at a relativelly early stage, with considerable work still to be done, because we are looking for feedback and contributions to steer development in productive directions. We are particularly interested in finding new potential use cases, for instance in specific industries. 
+
+>[!WARNING] Read the Legal Disclaimer
+>TinyTroupe is for research and simulation only. You are fully responsible for any use you make of the generated outputs. Various important additional legal considerations apply and constrain its use, please read the full [Legal Disclaimer](#legal-disclaimer) section below before using TinyTroupe.
+
+
+>[!NOTE] API stability
+>TinyTroupe is an ongoing research project, and the API is still subject to frequent changes. We are working to stabilize the API and provide a more consistent and user-friendly experience. We appreciate your patience and feedback as we continue to improve the library.
+
 
 ## Pre-requisites
 
@@ -25,27 +34,42 @@ To run the library, you need:
       * For Azure OpenAI Service, you will need to set the `AZURE_OPENAI_KEY` and `AZURE_OPENAI_ENDPOINT` environment variables to your API key and endpoint, respectively.
       * For OpenAI, you will need to set the `OPENAI_API_KEY` environment variable to your API key.
 
+>[!IMPORTANT]
+> **Content Filters**: To ensure no harmful content is generated during simulations, it is strongly recommended to use content filters whenever available at the API level. In particular, **if using Azure OpenAI, there's extensive support for content moderation, and we urge you to use it.** For details about how to do so, please consult [the corresponding Azure OpenAI documentation](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/content-filter). If content filters are in place, and an API call is rejected by them, the library will raise an exception, as it will be unable to proceed with the simulation at that point.
+
 
 ## Installation
 
+Currently, the official recommended way to install the library is directly from this repository, not PyPI. 
+
+### From the GitHub repository
+To install the library directly from the GitHub repository::
+
+```bash
+$ pip install git+https://github.com/microsoft/tinytroupe.git
+```
+
 ### From the local repository
-To build and install the library from this repository, you can run the `build_and_install_package_from_repo.bat` script (Windows). This will build the package and install it in your local Python environment. If you make changes to the library, you can run this script again to update the package locally.
+If you want to make changes to the library and test them locally, you can also of course clone the repository first:
 
-*Linux and MacOS conveniences coming soon as well*
-
-### From PyPI
-
-Soon :-)
+```bash
+$ git clone https://github.com/microsoft/tinytroupe
+$ cd tinytroupe
+$ pip install .
+```
 
 
 ## Principles 
-Recently, we have seen LLMs used to simulate people (such as [this](https://github.com/joonspk-research/generative_agents)), but largely in a “game-like” setting. What if we try instead to simulate people for productive tasks? TinyTroupe is our attempt. To do so, it follows these principles:
+Recently, we have seen LLMs used to simulate people (such as [this](https://github.com/joonspk-research/generative_agents)), but largely in a “game-like” setting for contemplative or entertainment purposes. What if we try instead to simulate people to support productivity tasks? TinyTroupe is our attempt. To do so, it follows these principles:
 
   1. **Programmatic**: agents and environments are defined programmatically (in Python and JSON), allowing very flexible uses. They can also thus underpin other software apps!
   2. **Analytical**: meant to improve our understanding of people, users and society. Unlike entertainment applications, this is one aspect that is critical for business and productivity use cases.
-  3. **Persona-based**: allows detailed specification of personas: age, occupation, skills, tastes, opinions, etc.
+  3. **Persona-based**: agents are meant to be archetypical representation of people; for greater realism and control, detailed specification of such personas is encouraged: age, occupation, skills, tastes, opinions, etc.
   4. **Multiagent**: allows multiagent interaction under well-defined environmental constraints.
   5. **Utilities-heavy**: provides many mechanisms to facilitate specifications, simulations, extractions, reports, validations, etc. This is one area in which dealing with *simulations* differs significantly from *assistance* tools.
+  6. **Experiment-oriented**: simulations are defined, run, analyzed and refined by an *experimenter* iteratively; suitable experimentation tools are thus provided.
+
+Together, these are meant to make TinyTroupe a powerful and flexible **imagination enhancement tool** for business and productivity scenarios.
 
 ### Assistants vs. Simulators
 
@@ -76,17 +100,18 @@ The project is structured as follows:
 
 ## Using the Library
 
-As any multi-agent system, TinyTroupe provides two key abstractions:
+As any multiagent system, TinyTroupe provides two key abstractions:
   - `TinyPerson`, the *agents* that have personality, receive stimuli and act upon them.
   - `TinyWorld`, the *environment* in which the agents exist and interact.
 
 Various parameters can also be customized in the `config.ini` file, notably the API type (Azure OpenAI Service or OpenAI API), the model parameters, and the logging level.
 
-Let's thus see how to use these.
+Let's see some examples of how to use these and also learn about other mechanisms available in the library.
 
 ### TinyPerson
 
-A `TinyPerson` is a simulated person with specific personality traits, interests, and goals. As each such simulated agent progresses through its life, it receives stimuli from the environment and acts upon them. The stimuli are received through the `listen`, `see` and other similar methods, and the actions are performed through the `act` method.
+A `TinyPerson` is a simulated person with specific personality traits, interests, and goals. As each such simulated agent progresses through its life, it receives stimuli from the environment and acts upon them. The stimuli are received through the `listen`, `see` and other similar methods, and the actions are performed through the `act` method. Convenience methods like `listen_and_act` are also provided.
+
 
 Each such agent contains a lot of unique details, which is the source of its realistic behavior. This, however, means that it takes significant effort to specify an agent manually. Hence, for convenience, `TinyTroupe` provide some easier ways to get started or generate new agents.
 
@@ -95,8 +120,8 @@ To begin with, `tinytroupe.examples` contains some pre-defined agents that you c
 ```python
 from tinytroupe.examples import lisa
 
-agent = lisa() # instantiate a Lisa from the example builder
-agent.listen_and_act("Tell me about your life.")
+lisa = create_lisa_the_data_scientist() # instantiate a Lisa from the example builder
+lisa.listen_and_act("Tell me about your life.")
 ```
 
 To see how to define your own agents from scratch, you can check Lisa's source, which contains elements like these:
@@ -135,70 +160,66 @@ person = factory.generate_person()
 
 ### TinyWorld
 
-`TinyWorld` is the base class for environments. Here's an example of conversation between Lisa, the data scientist, and Oscar, the architect.
+`TinyWorld` is the base class for environments. Here's an example of conversation between Lisa, the data scientist, and Oscar, the architect. The
+program is defined as follows:
 
 ```python
 world = TinyWorld("Chat Room", [lisa, oscar])
+world.make_everyone_accessible()
 lisa.listen("Talk to Oscar to know more about him")
 world.run(4)
 ```
 
-We can then inspect the conversation from the point of view of the particants, say Lisa:
+This produces the following conversation:
 
-```python
-lisa.pp_current_interactions()
-```
-
-Which produces:
 
 ```text
-USER: [CONVERSATION] Talk to Oscar to know more about him
-Lisa: [THOUGHT] I will now act.
-Lisa: [REACH_OUT] 
-Lisa: [THOUGHT] I will now act.
-Lisa: [TALK] Hello Oscar, I would like to know more about you. Can you tell me about your interests?
-Lisa: [THOUGHT] I will now act.
-Lisa: [DONE] 
-Chat Room: [SOCIAL] Oscar was successfully reached out, and is now available for interaction.
-Oscar: [CONVERSATION] Sure, Lisa. Professionally, I'm interested in modernist architecture and design, new technologies
-         > for architecture, and sustainable practices. On a personal level, I enjoy traveling to
-         > exotic places, playing the guitar, and reading science fiction books.
-Lisa: [THOUGHT] I will now act.
-Lisa: [THINK] Oscar has a diverse set of interests. I should ask him more about his professional interests.
-Lisa: [THOUGHT] I will now act.
-Lisa: [TALK] That's fascinating, Oscar. Can you tell me more about your interest in modernist architecture and
-        > design?
-Lisa: [THOUGHT] I will now act.
-Lisa: [DONE] 
-Oscar: [CONVERSATION] Absolutely, Lisa. I've always been drawn to the simplicity and functionality of modernist
-         > architecture. It's about stripping away the unnecessary and focusing on what's essential.
-         > This approach not only results in aesthetically pleasing designs, but also highly
-         > functional spaces. In my work, I strive to incorporate these principles, creating designs
-         > that are both beautiful and practical.
-Lisa: [THOUGHT] I will now act.
-Lisa: [THINK] Oscar's passion for modernist architecture is evident. His approach to design is very interesting.
-Lisa: [THOUGHT] I will now act.
-Lisa: [TALK] Your passion for modernist architecture is truly inspiring, Oscar. I love how you focus on
-        > simplicity and functionality in your designs. It's a refreshing approach.
-Lisa: [THOUGHT] I will now act.
-Lisa: [DONE] 
-Oscar: [CONVERSATION] Thank you, Lisa. I appreciate your kind words. It's always rewarding when others understand and
-         > appreciate the thought process behind my designs.
-Lisa: [THOUGHT] I will now act.
-Lisa: [THINK] Oscar seems to be very dedicated to his work. I should ask him about his current projects.
-Lisa: [THOUGHT] I will now act.
-Lisa: [TALK] Oscar, can you tell me about any current projects you're working on?
-Lisa: [THOUGHT] I will now act.
-Lisa: [DONE] 
-Oscar: [CONVERSATION] Sure, Lisa. Currently, I'm working on establishing standard elements for the new apartment buildings
-         > built by my company, Awesome Inc. The idea is to create pre-defined configurations for
-         > apartments, so customers can select a design without having to go through the hassle of
-         > designing it themselves. It's a challenging task, as I have to balance functionality,
-         > aesthetics, and cost-effectiveness, while also ensuring compliance with local building
-         > regulations.
+USER --> Lisa: [CONVERSATION] 
+          > Talk to Oscar to know more about him
+────────────────────────────────────────────── Chat Room step 1 of 4 ──────────────────────────────────────────────
+Lisa --> Lisa: [THOUGHT] 
+          > I will now act a bit, and then issue DONE.
+Lisa acts: [TALK] 
+          > Hi Oscar, I'd love to know more about you. Could you tell me a bit about yourself?
+Lisa --> Lisa: [THOUGHT] 
+          > I will now act a bit, and then issue DONE.
+Lisa acts: [DONE] 
+
+Lisa --> Oscar: [CONVERSATION] 
+          > Hi Oscar, I'd love to know more about you. Could you tell me a bit about yourself?
+Oscar --> Oscar: [THOUGHT] 
+           > I will now act a bit, and then issue DONE.
+Oscar acts: [TALK] 
+           > Hi Lisa! Sure, I'd be happy to share a bit about myself. I'm Oscar, a 30-year-old
+           > architect from Germany. I work at a company called Awesome Inc., where I focus on
+           > designing standard elements for new apartment buildings. I love modernist architecture,
+           > new technologies, and sustainable practices. In my free time, I enjoy traveling to
+           > exotic places, playing the guitar, and reading science fiction books. How about you?
+Oscar --> Oscar: [THOUGHT] 
+           > I will now act a bit, and then issue DONE.
+Oscar acts: [DONE] 
+
+Oscar --> Lisa: [CONVERSATION] 
+           > Hi Lisa! Sure, I'd be happy to share a bit about myself. I'm Oscar, a 30-year-old
+           > architect from Germany. I work at a company called Awesome Inc., where I focus on
+           > designing standard elements for new apartment buildings. I love modernist architecture,
+           > new technologies, and sustainable practices. In my free time, I enjoy traveling to
+           > exotic places, playing the guitar, and reading science fiction books. How about you?
 ```
 
-`TinyWorld` enforces very little constraints on the possible interactions. Subclasses, however, are supposed to provide more strucutred environments. We provide `TinySocialNetwork` as an example where interactions are constrained by the relations among agents, which are defined by the user.
+`TinyWorld` enforces very little constraints on the possible interactions. Subclasses, however, are supposed to provide more strucutred environments. 
+
+### Utilities
+
+TinyTroupe provides a number of utilities and conveniences to help you create simulations and derive value from them. These include:
+  
+  - `TinyPersonFactory`: helps you generate new `TinyPerson`s using LLMs.
+  - `TinyTool`: simulated tools that can be used by `TinyPerson`s.
+  - `TinyStory`: helps you create and manage the story told through simulations.
+  - `InteractionResultsExtractor` and `InteractionResultsReducer`: extract and reduce the results of interactions between agents.
+  - `TinyPersonChecker`: helps you validate the behavior of your `TinyPerson`s.
+  - ... and more ...
+  
 
 ### Caching
 Calling LLM APIs can be expensive, thus caching strategies are important to help reduce that cost.
@@ -213,7 +234,7 @@ simulation of course. However, what's the point in re-executing the first 9, and
 already satisified with them and did not modify them? For situations like this, the module `tinytroupe.control`
 provide useful simulation management methods:
 
-  - `control.begin("<CACHE_FILE_NAME>.json")`: begins recording the state changes of a simulation, to be saved to
+  - `control.begin("<CACHE_FILE_NAME>.cache.json")`: begins recording the state changes of a simulation, to be saved to
     the specified file on disk.
   - `control.checkpoint()`: saves the simulation state at this point.
   - `control.end()`: terminates the simulation recording scope that had be started by `control.begin()`.
@@ -246,7 +267,8 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 
 ### What and How to Contribute
 We need all sorts of things, like:
-  - New use cases demonstrations.
+  - New interesting use cases demonstrations, or even just domain-specific application ideas. 
+    If you are a domain expert in some area that could benefit from TinyTroupe, we'd love to hear from you.
   - Memory mechanisms.
   - Data grounding mechanisms.
   - Reasoning mechanisms.
@@ -262,6 +284,56 @@ If you would like to make a contribution, please try to follow these general gui
   - **Demonstrations:** If you'd like to demonstrate a new scenario, please design it preferably as a new Jupyter notebook within `examples/`.
   - **Microsoft:** If you are implementing anything that is Microsoft-specific and non-confidential, please put it under a `.../microsoft/` folder.
 
+## Acknowledgements
+
+TinyTroupe started as an internal Microsoft hackathon project, and expanded over time. The TinyTroupe core team currently consists of:
+  - Paulo Salem (TinyTroupe's creator and current lead)
+  - Christopher Olsen (Engineering/Science)
+  - Paulo Freire (Engineering/Science)
+  - Yi Ding (Product Management)
+  - Prerit Saxena (Engineering/Science)
+  
+Current advisors:
+  - Robert Sim (Engineering/Science)
+
+Other special contributions were made by:
+  - Nilo Garcia Silveira: initial agent validation ideas and related implementation; general initial feedback and insights; name suggestions.
+  - Olnei Fonseca: initial agent validation ideas; general initial feedback and insights; naming suggestions.
+  - Robert Sim: synthetic data generation scenarios expertise and implementation.
+  - Carlos Costa: synthetic data generation scenarios expertise and implementation.
+  - Bryant Key: advertising scenario domain expertise and insights.
+  - Barbara da Silva: implementation related to agent memory management.
+  
+ ... are you missing here? Please remind us!
+
+## How to Cite TinyTroupe
+
+We are working in an introductory paper that will be the official academic citation for TinyTroupe. In the meantime, please just cite this repository including the core team members as authors. For instance:
+
+
+
+>Paulo Salem, Christopher Olsen, Paulo Freire, Yi Ding, Prerit Saxena (2024). **TinyTroupe: LLM-powered multiagent persona simulation for imagination enhancement and insight generation.** [Computer software]. GitHub repository. https://github.com/microsoft/tinytroupe
+
+
+Or as bibtex:
+  
+  ```bibtex
+  @misc{tinytroupe,
+    author = {Paulo Salem and Christopher Olsen and Paulo Freire and Yi Ding and Prerit Saxena},
+    title = {TinyTroupe: LLM-powered multiagent persona simulation for imagination enhancement and insight generation},
+    year = {2024},
+    howpublished = {\url{https://github.com/microsoft/tinytroupe}},
+    note = {GitHub repository}
+    }
+
+ ```   
+
+## Legal Disclaimer
+
+ TinyTroupe is for research and simulation only. TinyTroupe is a research and experimental technology, which relies on Artificial Intelligence (AI) models to generate text  content. The AI system output may include unrealistic, inappropriate, harmful or inaccurate results, including factual errors. You are responsible for reviewing the generated content (and adapting it if necessary) before using it, as you are fully responsible for determining its accuracy and fit for purpose. We advise using TinyTroupe’s outputs for insight generation and not for direct decision-making. Generated outputs do not reflect the opinions of Microsoft. You are fully responsible for any use you make of the generated outputs. For more information regarding the responsible use of this technology, see the [RESPONSIBLE_AI_FAQ.md](./RESPONSIBLE_AI_FAQ.md).
+
+ **PROHIBITED USES**:
+TinyTroupe  is not intended to simulate sensitive (e.g. violent or sexual) situations. Moreover, outputs must not be used to deliberately deceive, mislead or harm people in any way. You are fully responsible for any use you make and must comply with all applicable laws and regulations.”
 
 ## Trademarks
 

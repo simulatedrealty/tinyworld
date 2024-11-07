@@ -162,13 +162,12 @@ class Simulation:
         Computes the hash of the given function call.
         """
         event = str((function_name, args, kwargs))
-        return event # TODO utils.custom_hash((function_name, args, kwargs))
+        return event
 
     def _skip_execution_with_cache(self):
         """
         Skips the current execution, assuming there's a cached state at the same position.
         """
-        #print("DEBUG: len(self.execution_trace) = ", len(self.execution_trace))
         assert len(self.cached_trace) > self._execution_trace_position() + 1, "There's no cached state at the current execution position."
         
         self.execution_trace.append(self.cached_trace[self._execution_trace_position() + 1])
@@ -178,10 +177,6 @@ class Simulation:
         Checks whether the given event hash matches the corresponding cached one, if any.
         If there's no corresponding cached state, returns True.
         """
-        #print("DEBUG: _is_transaction_event_cached: event_hash = ", event_hash)
-        #print("DEBUG: _is_transaction_event_cached: len(self.cached_trace) = ", len(self.cached_trace))
-        #print("DEBUG: _is_transaction_event_cached: self._execution_trace_position() = ", self._execution_trace_position())
-        
         # there's cache that could be used
         if len(self.cached_trace) > self._execution_trace_position() + 1:
             if self._execution_trace_position() >= -1:
@@ -195,9 +190,8 @@ class Simulation:
                 #     - event_hash == c_event_hash_1
                 #     - hash(e0) == c_prev_node_hash_1
                 event_hash_match = event_hash == self.cached_trace[self._execution_trace_position() + 1][1]
-                prev_node_match = True # TODO:   utils.custom_hash(self.execution_trace[-1]) == self.cached_trace[self._execution_trace_position() + 1][0]
-                #print("DEBUG: event_hash_match = ", event_hash_match, "prev_node_match = ", prev_node_match)
-                #print("DEBUG: event_hash = ", event_hash, "self.cached_trace[self._execution_trace_position() + 1][1] = ", self.cached_trace[self._execution_trace_position() + 1][1])
+                prev_node_match = True 
+
                 return event_hash_match and prev_node_match
             
             else: 
@@ -224,15 +218,6 @@ class Simulation:
         
         # Compute the hash of the previous execution pair, if any
         previous_hash = None
-        if len(self.execution_trace) > 0:
-            pass # TODO any additional verification?
-            #
-            #if self.execution_trace:
-            #    previous_hash = utils.custom_hash(self.execution_trace[-1])
-            #
-            ## checks whether the current execution hash matches the next cached hash. If not, abort.
-            #if self.cached_trace and self.cached_trace[self._execution_trace_position() + 1][0] != previous_hash:
-            #    raise CacheOutOfSync("Execution trace and cached trace are out of sync. Aborting.")
 
         # Create a tuple of (hash, state) and append it to the execution_trace list
         self.execution_trace.append((previous_hash, event_hash, event_output, state))
@@ -261,9 +246,6 @@ class Simulation:
             logger.info(f"Cache file not found on path: {cache_path}.")
             self.cached_trace = []
         
-        #for node in self.cached_trace:
-        #    print("DEBUG: node hash = ", utils.custom_hash(node))
-    
     def _save_cache_file(self, cache_path:str):
         """
         Saves the cache file to the given path. Always overwrites.
@@ -339,9 +321,7 @@ class Simulation:
         state["factories"] = []
         for factory in self.factories:
             state["factories"].append(factory.encode_complete_state())
-        
-        #print("DEBUG: ", state)
-        
+                
         return state
         
     def _decode_simulation_state(self, state: dict):
@@ -352,12 +332,9 @@ class Simulation:
         Args:
             state (dict): The state to decode.
         """
-        #print("DEBUG: _decode_simulation_state")
-
-        # TODO
-        # clear the agents and environments, we'll track them from now on
-        ##tinytroupe.environment.TinyWorld.clear_environments()
-        ##tinytroupe.agent.TinyPerson.clear_agents()
+        # local import to avoid circular dependencies
+        from tinytroupe.agent import TinyPerson
+        from tinytroupe.environment import TinyWorld
 
         logger.debug(f"Decoding simulation state: {state['factories']}")
         logger.debug(f"Registered factories: {self.name_to_factory}")
@@ -368,18 +345,15 @@ class Simulation:
         for factory_state in state["factories"]:
             factory = self.name_to_factory[factory_state["name"]]
             factory.decode_complete_state(factory_state)
-            # TODO self.factories.append(factory)
 
         # Decode environments
         ###self.environments = []
         for environment_state in state["environments"]:
             try:
                 environment = self.name_to_environment[environment_state["name"]]
-                #print("DEBUG: environment.simulation_id = ", environment.simulation_id)
                 environment.decode_complete_state(environment_state)
-                if environment.communication_display:
+                if TinyWorld.communication_display:
                     environment.pop_and_display_latest_communications()
-                # TODO self.environments.append(environment)
 
             except Exception as e:
                 raise ValueError(f"Environment {environment_state['name']} is not in the simulation, thus cannot be decoded there.") from e
@@ -388,36 +362,16 @@ class Simulation:
         ####self.agents = []
         for agent_state in state["agents"]:
             try:
-                #print("DEBUG: agent_state")
                 agent = self.name_to_agent[agent_state["name"]]
-                #print("DEBUG: agent.simulation_id = ", agent.simulation_id)
                 agent.decode_complete_state(agent_state)
                 
                 # The agent has not yet been decoded because it is not in any environment. So, decode it.
                 if agent.environment is None:
-                    if agent.communication_display:
+                    if TinyPerson.communication_display:
                         agent.pop_and_display_latest_communications()
             except Exception as e:
                 raise ValueError(f"Agent {agent_state['name']} is not in the simulation, thus cannot be decoded there.") from e        
 
-            # TODO
-            # the agent is not yet in the simulation, so it was not decoded by the environment
-            #if not tinytroupe.agent.TinyPerson.has_agent(agent_name):
-            #    agent = tinytroupe.agent.TinyPerson.decode_complete_state(agent_state)
-            #    #print("DEBUG: agent.simulation_id = ", agent.simulation_id)
-            #    if agent.communication_display:
-            #        # only display communications if the agent is not in an environment.
-            #        # if it is, the environment will control the display of communications.
-            #        #print("DEBUG: agent.environment = ", agent.environment)
-            #        if agent.environment is None:
-            #            agent.pop_and_display_latest_communications()
-            #    self.agents.append(agent)
-#
-            #else:
-            #    logger.debug(f"Agent {agent_name} is already in the simulation, was decoded by the environment.")
-        
-        
-        
 
 class Transaction:
 
@@ -478,7 +432,6 @@ class Transaction:
 
             # Check if the event hash is in the cache
             if self.simulation._is_transaction_event_cached(event_hash):
-                #print("DEBUG: CACHED event_hash = ", event_hash)
                 # Restore the full state and return the cached output
                 logger.info(f"Skipping execution of {self.function_name} with args {self.args} and kwargs {self.kwargs} because it is already cached.")
 
@@ -493,7 +446,6 @@ class Transaction:
                 output = self._decode_function_output(encoded_output)
 
             else: # not cached
-                #print("DEBUG: NOT CACHED event_hash = ", event_hash)
                 
                 # reentrant transactions are not cached, since what matters is the final result of
                 # the top-level transaction

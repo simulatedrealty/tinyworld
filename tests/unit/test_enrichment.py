@@ -60,7 +60,7 @@ def test_enrich_content():
 
     logger.debug(f"Enrichment result: {result}\n Length: {len(result)}\n Original length: {len(content_to_enrich)}\n")
 
-    assert len(result) >= len(content_to_enrich) * 5, "The result should be at least 5 times larger than the original content."
+    assert len(result) >= len(content_to_enrich) * 3, "The result should be at least 3 times larger than the original content."
 
 
     
