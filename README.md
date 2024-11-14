@@ -15,7 +15,7 @@
 
 In all of the above, and many others, we hope experimenters can **gain insights** about their domain of interest, and thus make better decisions. 
 
-We are releasing *TinyTroupe* at a relativelly early stage, with considerable work still to be done, because we are looking for feedback and contributions to steer development in productive directions. We are particularly interested in finding new potential use cases, for instance in specific industries. 
+We are releasing *TinyTroupe* at a relatively early stage, with considerable work still to be done, because we are looking for feedback and contributions to steer development in productive directions. We are particularly interested in finding new potential use cases, for instance in specific industries. 
 
 >[!NOTE] 
 >🚧 **WORK IN PROGRESS: expect frequent changes**.
@@ -116,7 +116,7 @@ To run the library, you need:
       ```bash
       conda activate tinytroupe
       ```
-4. Make sure you have eihter Azure OpenAI or OpenAI API keys set as environment variables, as described in the [Pre-requisites](#pre-requisites) section.
+4. Make sure you have either Azure OpenAI or OpenAI API keys set as environment variables, as described in the [Pre-requisites](#pre-requisites) section.
 5. Clone the repository, as we'll perform a local install (we **will not install from PyPI**):
     ```bash
     git clone https://github.com/microsoft/tinytroupe
@@ -139,7 +139,7 @@ pip install -e .
 ```
 
 ## Principles 
-Recently, we have seen LLMs used to simulate people (such as [this](https://github.com/joonspk-research/generative_agents)), but largely in a “game-like” setting for contemplative or entertainment purposes. There are also libraries for building multiagent systems for proble-solving and assitive AI, like [Autogen](https://microsoft.github.io/) and [Crew AI](https://docs.crewai.com/). What if we combine these ideas and simulate people to support productivity tasks? TinyTroupe is our attempt. To do so, it follows these principles:
+Recently, we have seen LLMs used to simulate people (such as [this](https://github.com/joonspk-research/generative_agents)), but largely in a “game-like” setting for contemplative or entertainment purposes. There are also libraries for building multiagent systems for problem-solving and assistive AI, like [Autogen](https://microsoft.github.io/) and [Crew AI](https://docs.crewai.com/). What if we combine these ideas and simulate people to support productivity tasks? TinyTroupe is our attempt. To do so, it follows these principles:
 
   1. **Programmatic**: agents and environments are defined programmatically (in Python and JSON), allowing very flexible uses. They can also thus underpin other software apps!
   2. **Analytical**: meant to improve our understanding of people, users and society. Unlike entertainment applications, this is one aspect that is critical for business and productivity use cases. This is also why we recommend using Jupyter notebooks for simulations, just like one uses them for data analysis.
@@ -285,7 +285,7 @@ Oscar --> Lisa: [CONVERSATION]
            > exotic places, playing the guitar, and reading science fiction books. How about you?
 ```
 
-`TinyWorld` enforces very little constraints on the possible interactions. Subclasses, however, are supposed to provide more strucutred environments. 
+`TinyWorld` enforces very little constraints on the possible interactions. Subclasses, however, are supposed to provide more structured environments. 
 
 ### Utilities
 
@@ -310,7 +310,7 @@ TinyTroupe comes with two such mechanisms: one for the simulation state, another
 Imagine you have a scenario with 10 different steps, you've worked hard in 9 steps, and now you are
 just tweaking the 10th step. To properly validate your modifications, you need to rerun the whole
 simulation of course. However, what's the point in re-executing the first 9, and incur the LLM cost, when you are 
-already satisified with them and did not modify them? For situations like this, the module `tinytroupe.control`
+already satisfied with them and did not modify them? For situations like this, the module `tinytroupe.control`
 provide useful simulation management methods:
 
   - `control.begin("<CACHE_FILE_NAME>.cache.json")`: begins recording the state changes of a simulation, to be saved to
@@ -320,7 +320,7 @@ provide useful simulation management methods:
 
 #### Caching LLM API Calls
 
-This is enabled preferably in the `config.ini` file, and alternativelly via the `openai_utils.force_api_cache()`.
+This is enabled preferably in the `config.ini` file, and alternatively via the `openai_utils.force_api_cache()`.
 
 LLM API caching, when enabled, works at a lower and simpler level than simulation state caching. Here,
 what happens is a very straightforward: every LLM call is kept in a map from the input to the generated output;
