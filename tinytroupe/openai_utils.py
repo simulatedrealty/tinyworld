@@ -365,9 +365,9 @@ class AzureClient(OpenAIClient):
         Sets up the Azure OpenAI Service API configurations for this client,
         including the API endpoint and key.
         """
-        self.client = AzureOpenAI(azure_endpoint= os.getenv("AZURE_OPENAI_ENDPOINT"),
+        self.client = AzureOpenAI(azure_endpoint= config["OpenAI"]["AZURE_OPENAI_ENDPOINT"],
                                   api_version = config["OpenAI"]["AZURE_API_VERSION"],
-                                  api_key = os.getenv("AZURE_OPENAI_KEY"))
+                                  api_key = config["OpenAI"]["AZURE_OPENAI_KEY"])
     
     def _raw_model_call(self, model, chat_api_params):
         """
